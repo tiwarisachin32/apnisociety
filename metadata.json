@@ -1,0 +1,6 @@
+{
+  "name": "ApniSociety",
+  "description": "Society & Apartment Management application for residents and committee members.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

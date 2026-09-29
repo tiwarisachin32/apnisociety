@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered society user and authentication profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase authentication UID" },
+        "name": { "type": "string", "description": "Full name of the user", "maxLength": 100 },
+        "email": { "type": "string", "description": "Email address of user", "maxLength": 120 },
+        "phone": { "type": "string", "description": "10-digit mobile number", "maxLength": 20 },
+        "role": { "type": "string", "description": "Primary role assigned", "maxLength": 50 },
+        "unitNumber": { "type": "string", "description": "Assigned flat unit", "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Member": {
+      "title": "Member",
+      "description": "Resident or society member directory record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Member ID" },
+        "name": { "type": "string", "description": "Full name", "maxLength": 100 },
+        "unitNumber": { "type": "string", "description": "Flat identifier", "maxLength": 20 },
+        "type": { "type": "string", "enum": ["owner", "tenant", "committee", "staff"], "description": "Resident category" },
+        "phone": { "type": "string", "description": "Contact phone", "maxLength": 20 },
+        "email": { "type": "string", "description": "Contact email", "maxLength": 120 },
+        "verificationStatus": { "type": "string", "enum": ["verified", "pending_verification", "rejected"], "description": "KYC status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Onboarding date" }
+      },
+      "required": ["id", "name", "unitNumber", "type", "verificationStatus"]
+    },
+    "Complaint": {
+      "title": "Complaint",
+      "description": "Resident ticket or maintenance complaint",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Ticket ID" },
+        "title": { "type": "string", "description": "Complaint title", "maxLength": 150 },
+        "category": { "type": "string", "description": "Issue category (plumbing, electrical, etc.)", "maxLength": 50 },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "emergency"], "description": "Urgency tier" },
+        "status": { "type": "string", "enum": ["raised", "assigned", "in_progress", "resolved", "closed"], "description": "Resolution status" },
+        "unitNumber": { "type": "string", "description": "Reporting flat unit", "maxLength": 20 },
+        "raisedBy": { "type": "string", "description": "Resident name or UID", "maxLength": 100 },
+        "description": { "type": "string", "description": "Detailed explanation", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Ticket submission timestamp" }
+      },
+      "required": ["id", "title", "category", "priority", "status", "unitNumber", "raisedBy"]
+    },
+    "MaintenanceBill": {
+      "title": "MaintenanceBill",
+      "description": "Monthly maintenance invoice for a housing society flat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Bill number" },
+        "unitNumber": { "type": "string", "description": "Flat unit number", "maxLength": 20 },
+        "month": { "type": "string", "description": "Billing month (e.g. 2026-03)", "maxLength": 20 },
+        "amount": { "type": "number", "description": "Total bill amount in INR" },
+        "status": { "type": "string", "enum": ["paid", "pending", "overdue"], "description": "Bill payment status" },
+        "dueDate": { "type": "string", "description": "Payment due date" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Bill creation timestamp" }
+      },
+      "required": ["id", "unitNumber", "month", "amount", "status", "dueDate"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Broadcast notice from society RWA committee",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Notice ID" },
+        "title": { "type": "string", "description": "Notice headline", "maxLength": 200 },
+        "content": { "type": "string", "description": "Notice body text", "maxLength": 2000 },
+        "priority": { "type": "string", "enum": ["normal", "urgent", "emergency"], "description": "Broadcast urgency" },
+        "sender": { "type": "string", "description": "Sender committee role", "maxLength": 100 },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Publication timestamp" }
+      },
+      "required": ["id", "title", "content", "priority", "sender"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Profiles for registered society residents and staff"
+    },
+    "/members/{memberId}": {
+      "schema": "Member",
+      "description": "Resident directory of owners, tenants, and committee members"
+    },
+    "/complaints/{complaintId}": {
+      "schema": "Complaint",
+      "description": "Society maintenance requests, tickets, and resolution updates"
+    },
+    "/bills/{billId}": {
+      "schema": "MaintenanceBill",
+      "description": "Monthly society maintenance charges, dues, and payment records"
+    },
+    "/announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "RWA notices, broadcasts, and emergency community alerts"
+    }
+  }
+}
