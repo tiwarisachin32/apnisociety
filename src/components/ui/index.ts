@@ -10,3 +10,4 @@ export * from './SearchInput';
 export * from './SectionHeader';
 export * from './Modal';
 export * from './TabBar';
+export * from './FileUpload';

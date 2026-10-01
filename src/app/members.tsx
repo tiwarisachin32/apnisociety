@@ -49,7 +49,7 @@ export interface MembersScreenProps {
   onNavigateToHallBooking?: () => void;
   onNavigateToComplaints?: () => void;
   onNavigateToNotifications?: () => void;
-  onNavigateToRoles?: () => void;
+  onNavigateToRoles?: (roleId?: string, memberId?: string) => void;
 }
 
 export default function MembersScreen({
@@ -324,6 +324,21 @@ export default function MembersScreen({
   // Committee members sorted
   const committeeMembers = getCommitteeMembers();
 
+  // If user has neither permission
+  if (!canView && !canManage) {
+    return (
+      <ScreenContainer maxWidth={640}>
+        <Card title="Members Directory Restricted" subtitle="Permission required">
+          <View style={{ padding: spacing.md }}>
+            <Text style={{ fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20 }}>
+              Your current persona ({user?.roleTitle || 'User'}) does not hold permissions to view the society member registry.
+            </Text>
+          </View>
+        </Card>
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer maxWidth={1180}>
       {/* Toast Banner */}
@@ -367,15 +382,17 @@ export default function MembersScreen({
 
         {/* Action Buttons Top */}
         <View style={styles.headerActions}>
-          <Button
-            title="➕ Onboard Resident"
-            variant="primary"
-            size="md"
-            onPress={() => {
-              resetForm();
-              setShowAddModal(true);
-            }}
-          />
+          {canManage && (
+            <Button
+              title="➕ Onboard Resident"
+              variant="primary"
+              size="md"
+              onPress={() => {
+                resetForm();
+                setShowAddModal(true);
+              }}
+            />
+          )}
           <Button
             title="📞 Emergency Desk"
             variant="outline"
@@ -478,14 +495,16 @@ export default function MembersScreen({
           </Text>
         </Pressable>
 
-        <Pressable
-          onPress={() => setActiveTab('rbac')}
-          style={[styles.tabButton, activeTab === 'rbac' && styles.tabButtonActive]}
-        >
-          <Text style={[styles.tabText, activeTab === 'rbac' && styles.tabTextActive]}>
-            🔐 Roles & Permissions
-          </Text>
-        </Pressable>
+        {(hasPermission(PERMISSIONS.ROLES_VIEW) || canManage) && (
+          <Pressable
+            onPress={() => setActiveTab('rbac')}
+            style={[styles.tabButton, activeTab === 'rbac' && styles.tabButtonActive]}
+          >
+            <Text style={[styles.tabText, activeTab === 'rbac' && styles.tabTextActive]}>
+              🔐 Roles & Permissions
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       {/* ========================================================================= */}
@@ -738,9 +757,28 @@ export default function MembersScreen({
                     onPress={() => setSelectedMember(cm)}
                     style={{ flex: 1 }}
                   />
+                  {onNavigateToRoles && (user?.roleId === 'role-president' || user?.isCommitteeMember) && (
+                    <Button
+                      title="✏️ Permissions"
+                      variant="primary"
+                      size="sm"
+                      onPress={() => {
+                        const targetRole = cm.committeeRole === 'vice_president'
+                          ? 'role-vice-president'
+                          : cm.committeeRole === 'treasurer'
+                          ? 'role-treasurer'
+                          : cm.committeeRole === 'general_secretary'
+                          ? 'role-secretary'
+                          : cm.committeeRole === 'joint_secretary'
+                          ? 'role-joint-secretary'
+                          : 'role-president';
+                        onNavigateToRoles(targetRole, cm.id);
+                      }}
+                    />
+                  )}
                   <Button
                     title="📞 Call"
-                    variant="primary"
+                    variant="outline"
                     size="sm"
                     onPress={() => showToast(`Initiating call to ${cm.name} (+91 ${cm.phone})`)}
                   />
@@ -1584,6 +1622,32 @@ export default function MembersScreen({
                           size="sm"
                           onPress={() => handleToggleCommitteeRole(selectedMember)}
                         />
+
+                        {onNavigateToRoles && (
+                          <Button
+                            title="Modify Permissions 🛡️"
+                            variant="primary"
+                            size="sm"
+                            onPress={() => {
+                              const memId = selectedMember.id;
+                              const targetRole = selectedMember.isCommitteeMember
+                                ? selectedMember.committeeRole === 'vice_president'
+                                  ? 'role-vice-president'
+                                  : selectedMember.committeeRole === 'treasurer'
+                                  ? 'role-treasurer'
+                                  : selectedMember.committeeRole === 'general_secretary'
+                                  ? 'role-secretary'
+                                  : selectedMember.committeeRole === 'joint_secretary'
+                                  ? 'role-joint-secretary'
+                                  : 'role-president'
+                                : selectedMember.residentType === 'tenant'
+                                ? 'role-tenant'
+                                : 'role-owner';
+                              setSelectedMember(null);
+                              onNavigateToRoles(targetRole, memId);
+                            }}
+                          />
+                        )}
 
                         <Button
                           title="Remove Resident"
@@ -2560,13 +2624,15 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
   },
   modalContainer: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderRadius: borderRadius.lg,
     width: '100%',
     maxWidth: 620,
@@ -2574,6 +2640,8 @@ const styles = StyleSheet.create({
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.default,
     shadowColor: '#000',
     shadowOpacity: 0.25,
     shadowOffset: { width: 0, height: 4 },

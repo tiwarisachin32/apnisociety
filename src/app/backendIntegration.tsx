@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { ScreenContainer } from '../components/layout/ScreenContainer';
 import { Button, Card, StatusBadge } from '../components/ui';
-import { APP_NAME } from '../constants/app';
+import { APP_NAME, PERMISSIONS } from '../constants/app';
 import { borderRadius, colors, spacing, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
@@ -22,6 +22,7 @@ import {
 } from '../services/apiClient';
 
 export interface BackendIntegrationScreenProps {
+  onClose?: () => void;
   onNavigateToDashboard?: () => void;
   onNavigateToMaintenance?: () => void;
   onNavigateToWater?: () => void;
@@ -179,6 +180,7 @@ const POSTGRES_TABLES = [
 ];
 
 export default function BackendIntegrationScreen({
+  onClose,
   onNavigateToDashboard,
   onNavigateToMaintenance,
   onNavigateToWater,
@@ -287,19 +289,42 @@ export default function BackendIntegrationScreen({
     }
   };
 
+  const isAuthorized =
+    user?.isCommitteeMember ||
+    (user && (user.permissions.includes(PERMISSIONS.SETTINGS_MANAGE) || user.permissions.includes(PERMISSIONS.AUDIT_VIEW)));
+
+  if (!isAuthorized) {
+    return (
+      <ScreenContainer maxWidth={640}>
+        <Card title="🔒 Developer Diagnostics Restricted" subtitle="Committee / Admin permission required">
+          <View style={{ padding: spacing.md }}>
+            <Text style={{ fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20 }}>
+              Access to FastAPI endpoints and PostgreSQL database schema diagnostics is restricted to Developer & Admin roles. This console is hidden from standard resident navigation.
+            </Text>
+            {onClose && (
+              <View style={{ marginTop: spacing.md, alignItems: 'flex-start' }}>
+                <Button title="✕ Close Console" variant="outline" size="sm" onPress={onClose} />
+              </View>
+            )}
+          </View>
+        </Card>
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer scrollable={false}>
       {/* Header Banner */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <View style={styles.titleRow}>
-            <Text style={styles.headerTitle}>FastAPI + PostgreSQL Backend</Text>
+            <Text style={styles.headerTitle}>Backend API & Developer Diagnostics</Text>
             <View style={styles.stepBadge}>
-              <Text style={styles.stepBadgeText}>Step 14 Complete</Text>
+              <Text style={styles.stepBadgeText}>🔒 Hidden Dev Console</Text>
             </View>
           </View>
           <Text style={styles.headerSubtitle}>
-            {APP_NAME} • Enterprise Asynchronous REST API & Relational Database Layer
+            {APP_NAME} • Internal Asynchronous REST API, Schema & Dev Specs (Hidden from user navigation)
           </Text>
         </View>
 
@@ -310,6 +335,15 @@ export default function BackendIntegrationScreen({
             size="sm"
             onPress={checkHealth}
           />
+          {onClose && (
+            <Button
+              title="✕ Close Console"
+              variant="primary"
+              size="sm"
+              onPress={onClose}
+              style={{ marginLeft: spacing.xs }}
+            />
+          )}
         </View>
       </View>
 
@@ -501,61 +535,54 @@ export default function BackendIntegrationScreen({
               </View>
             </Card>
 
-            {/* Quick Links to other modules */}
+            {/* Developer Architecture & Secrets Specification */}
             <Card style={styles.quickNavCard}>
-              <Text style={styles.sectionHeader}>Cross-Module Integrations</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs }}>
+                <Text style={styles.sectionHeader}>🔒 Developer Runtime & Internal Architecture</Text>
+                <View style={{ backgroundColor: colors.warning.background, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: borderRadius.sm }}>
+                  <Text style={{ fontSize: typography.sizes.xs, color: colors.warning.main, fontWeight: '700' }}>INTERNAL SECRETS</Text>
+                </View>
+              </View>
               <Text style={styles.sectionSubtitle}>
-                Every frontend screen in ApniSociety connects to the backend API services:
+                Confidential runtime environment variables, authentication protocols, and database connection pooling configuration:
               </Text>
 
-              <View style={styles.quickNavGrid}>
-                <Pressable
-                  style={styles.quickNavButton}
-                  onPress={onNavigateToMembers}
-                >
-                  <Text style={styles.quickNavIcon}>👥</Text>
-                  <Text style={styles.quickNavLabel}>Members & Directory</Text>
-                </Pressable>
+              <View style={{ marginTop: spacing.md, gap: spacing.md }}>
+                <View style={{ backgroundColor: colors.background, padding: spacing.md, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border.default }}>
+                  <Text style={{ fontSize: typography.sizes.sm, fontWeight: '700', color: colors.text.primary, marginBottom: spacing.xs }}>
+                    🔑 Environment Variables & Security Credentials
+                  </Text>
+                  <View style={{ gap: spacing.xs }}>
+                    <Text style={styles.specLine}>• <Text style={styles.specKey}>DATABASE_URL:</Text> <Text style={styles.specValue}>postgresql://postgres:********@localhost:5432/apnisociety_db</Text></Text>
+                    <Text style={styles.specLine}>• <Text style={styles.specKey}>JWT_SECRET_KEY:</Text> <Text style={styles.specValue}>sha256:hs256_society_internal_token_secret_********</Text></Text>
+                    <Text style={styles.specLine}>• <Text style={styles.specKey}>ALGORITHM:</Text> <Text style={styles.specValue}>HS256 (Access Token Expiry: 60m • Refresh: 30d)</Text></Text>
+                    <Text style={styles.specLine}>• <Text style={styles.specKey}>CORS_ORIGINS:</Text> <Text style={styles.specValue}>["http://localhost:3000", "https://apnisociety.local"]</Text></Text>
+                    <Text style={styles.specLine}>• <Text style={styles.specKey}>LOG_LEVEL:</Text> <Text style={styles.specValue}>DEBUG (uvicorn.access, sqlalchemy.engine)</Text></Text>
+                  </View>
+                </View>
 
-                <Pressable
-                  style={styles.quickNavButton}
-                  onPress={onNavigateToMaintenance}
-                >
-                  <Text style={styles.quickNavIcon}>💳</Text>
-                  <Text style={styles.quickNavLabel}>Maintenance Bills</Text>
-                </Pressable>
+                <View style={{ backgroundColor: colors.background, padding: spacing.md, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border.default }}>
+                  <Text style={{ fontSize: typography.sizes.sm, fontWeight: '700', color: colors.text.primary, marginBottom: spacing.xs }}>
+                    ⚙️ SQLAlchemy 2.0 Connection Pool Settings
+                  </Text>
+                  <View style={{ gap: spacing.xs }}>
+                    <Text style={styles.specLine}>• <Text style={styles.specKey}>pool_size:</Text> <Text style={styles.specValue}>20 concurrent persistent connections</Text></Text>
+                    <Text style={styles.specLine}>• <Text style={styles.specKey}>max_overflow:</Text> <Text style={styles.specValue}>10 burst connections during maintenance billing peaks</Text></Text>
+                    <Text style={styles.specLine}>• <Text style={styles.specKey}>pool_timeout:</Text> <Text style={styles.specValue}>30s acquire threshold</Text></Text>
+                    <Text style={styles.specLine}>• <Text style={styles.specKey}>pool_recycle:</Text> <Text style={styles.specValue}>3600s automatic socket recycling</Text></Text>
+                  </View>
+                </View>
 
-                <Pressable
-                  style={styles.quickNavButton}
-                  onPress={onNavigateToComplaints}
-                >
-                  <Text style={styles.quickNavIcon}>🛠️</Text>
-                  <Text style={styles.quickNavLabel}>Helpdesk Complaints</Text>
-                </Pressable>
-
-                <Pressable
-                  style={styles.quickNavButton}
-                  onPress={onNavigateToRoles}
-                >
-                  <Text style={styles.quickNavIcon}>🛡️</Text>
-                  <Text style={styles.quickNavLabel}>Roles & Permissions</Text>
-                </Pressable>
-
-                <Pressable
-                  style={styles.quickNavButton}
-                  onPress={onNavigateToReports}
-                >
-                  <Text style={styles.quickNavIcon}>📊</Text>
-                  <Text style={styles.quickNavLabel}>Executive Reports</Text>
-                </Pressable>
-
-                <Pressable
-                  style={styles.quickNavButton}
-                  onPress={onNavigateToExpenses}
-                >
-                  <Text style={styles.quickNavIcon}>🧾</Text>
-                  <Text style={styles.quickNavLabel}>Expenses & Claims</Text>
-                </Pressable>
+                <View style={{ backgroundColor: colors.background, padding: spacing.md, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border.default }}>
+                  <Text style={{ fontSize: typography.sizes.sm, fontWeight: '700', color: colors.text.primary, marginBottom: spacing.xs }}>
+                    📋 Interactive API Docs & Specifications
+                  </Text>
+                  <View style={{ gap: spacing.xs }}>
+                    <Text style={styles.specLine}>• <Text style={styles.specKey}>Swagger OpenAPI:</Text> <Text style={styles.specValue}>http://localhost:8000/docs</Text></Text>
+                    <Text style={styles.specLine}>• <Text style={styles.specKey}>ReDoc Engine:</Text> <Text style={styles.specValue}>http://localhost:8000/redoc</Text></Text>
+                    <Text style={styles.specLine}>• <Text style={styles.specKey}>Raw Schema JSON:</Text> <Text style={styles.specValue}>http://localhost:8000/openapi.json</Text></Text>
+                  </View>
+                </View>
               </View>
             </Card>
           </View>
@@ -1003,6 +1030,19 @@ const styles = StyleSheet.create({
   },
   quickNavCard: {
     padding: spacing.lg,
+  },
+  specLine: {
+    fontSize: typography.sizes.xs,
+    color: colors.text.secondary,
+    lineHeight: 20,
+    fontFamily: 'monospace',
+  },
+  specKey: {
+    fontWeight: typography.weights.bold,
+    color: colors.primary[600],
+  },
+  specValue: {
+    color: colors.text.primary,
   },
   quickNavGrid: {
     flexDirection: 'row',

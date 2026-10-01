@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -22,11 +22,15 @@ import NotificationsScreen from './app/notifications';
 import ReimbursementsScreen from './app/reimbursements';
 import ReportsScreen from './app/reports';
 import RolesPermissionsScreen from './app/rolesPermissions';
+import SocietySettingsScreen from './app/societySettings';
 import WaterScreen from './app/water';
-import { APP_NAME } from './constants/app';
+import { Button, Card } from './components/ui';
+import { APP_NAME, PERMISSIONS, PermissionType } from './constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from './constants/theme';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useResponsive } from './hooks/useResponsive';
+import { getSocietyConfig, subscribeToSocietyConfig } from './services/societyConfig';
+import { User } from './types/auth';
 
 type TabKey =
   | 'dashboard'
@@ -40,6 +44,7 @@ type TabKey =
   | 'members'
   | 'roles'
   | 'reports'
+  | 'settings'
   | 'backend'
   | 'login';
 
@@ -48,35 +53,234 @@ interface NavItem {
   label: string;
   icon: string;
   category: 'core' | 'finance' | 'community' | 'admin';
+  requiredPermissions?: PermissionType[];
+  requireCommittee?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { key: 'dashboard', label: 'Dashboard', icon: '📊', category: 'core' },
-  { key: 'maintenance', label: 'Maintenance', icon: '💳', category: 'finance' },
-  { key: 'water', label: 'Water Bills', icon: '💧', category: 'finance' },
-  { key: 'expenses', label: 'Expenses', icon: '🧾', category: 'finance' },
-  { key: 'reimbursements', label: 'Reimbursements', icon: '💰', category: 'finance' },
-  { key: 'hall_booking', label: 'Hall Booking', icon: '🏛️', category: 'community' },
-  { key: 'complaints', label: 'Complaints', icon: '🛠️', category: 'community' },
-  { key: 'notifications', label: 'Notices', icon: '📢', category: 'community' },
-  { key: 'members', label: 'Members', icon: '👥', category: 'community' },
-  { key: 'roles', label: 'Roles & Access', icon: '🛡️', category: 'admin' },
-  { key: 'reports', label: 'Reports', icon: '📈', category: 'admin' },
-  { key: 'backend', label: 'API Backend', icon: '⚡', category: 'admin' },
+  {
+    key: 'maintenance',
+    label: 'Maintenance',
+    icon: '💳',
+    category: 'finance',
+    requiredPermissions: [
+      PERMISSIONS.MAINTENANCE_VIEW,
+      PERMISSIONS.MAINTENANCE_MANAGE,
+      PERMISSIONS.MAINTENANCE_PAY,
+    ],
+  },
+  {
+    key: 'water',
+    label: 'Water Bills',
+    icon: '💧',
+    category: 'finance',
+    requiredPermissions: [
+      PERMISSIONS.WATER_VIEW,
+      PERMISSIONS.WATER_RECORD_METER,
+      PERMISSIONS.WATER_MANAGE_SLABS,
+    ],
+  },
+  {
+    key: 'expenses',
+    label: 'Expenses',
+    icon: '🧾',
+    category: 'finance',
+    requiredPermissions: [
+      PERMISSIONS.EXPENSES_VIEW,
+      PERMISSIONS.EXPENSES_MANAGE,
+    ],
+  },
+  {
+    key: 'reimbursements',
+    label: 'Reimbursements',
+    icon: '💰',
+    category: 'finance',
+    requiredPermissions: [
+      PERMISSIONS.REIMBURSEMENT_SUBMIT,
+      PERMISSIONS.REIMBURSEMENT_APPROVE,
+    ],
+  },
+  {
+    key: 'hall_booking',
+    label: 'Hall Booking',
+    icon: '🏛️',
+    category: 'community',
+    requiredPermissions: [
+      PERMISSIONS.HALL_VIEW_CALENDAR,
+      PERMISSIONS.HALL_BOOK,
+      PERMISSIONS.HALL_APPROVE,
+    ],
+  },
+  {
+    key: 'complaints',
+    label: 'Complaints',
+    icon: '🛠️',
+    category: 'community',
+    requiredPermissions: [
+      PERMISSIONS.COMPLAINT_RAISE,
+      PERMISSIONS.COMPLAINT_VIEW_ALL,
+      PERMISSIONS.COMPLAINT_ASSIGN,
+      PERMISSIONS.COMPLAINT_RESOLVE,
+    ],
+  },
+  {
+    key: 'notifications',
+    label: 'Notices',
+    icon: '📢',
+    category: 'community',
+    requiredPermissions: [
+      PERMISSIONS.NOTIFICATION_VIEW,
+      PERMISSIONS.NOTIFICATION_BROADCAST,
+    ],
+  },
+  {
+    key: 'members',
+    label: 'Members',
+    icon: '👥',
+    category: 'community',
+    requiredPermissions: [
+      PERMISSIONS.MEMBERS_VIEW,
+      PERMISSIONS.MEMBERS_MANAGE,
+    ],
+  },
+  {
+    key: 'roles',
+    label: 'Roles & Access',
+    icon: '🛡️',
+    category: 'admin',
+    requiredPermissions: [
+      PERMISSIONS.ROLES_VIEW,
+      PERMISSIONS.ROLES_MANAGE,
+    ],
+  },
+  {
+    key: 'reports',
+    label: 'Reports',
+    icon: '📈',
+    category: 'admin',
+    requiredPermissions: [
+      PERMISSIONS.REPORTS_VIEW,
+      PERMISSIONS.REPORTS_EXPORT,
+    ],
+  },
+  {
+    key: 'settings',
+    label: 'Society Setup & Release',
+    icon: '⚙️',
+    category: 'admin',
+    requireCommittee: true,
+  },
+  {
+    key: 'backend',
+    label: 'API Backend',
+    icon: '⚡',
+    category: 'admin',
+    requireCommittee: true,
+  },
 ];
+
+export function isTabPermitted(tabKey: TabKey, user: User | null): boolean {
+  if (tabKey === 'login' || tabKey === 'dashboard') return true;
+  if (!user) return false;
+  if (tabKey === 'settings' || tabKey === 'backend') {
+    return Boolean(
+      user.isCommitteeMember ||
+      user.permissions.includes(PERMISSIONS.ROLES_MANAGE) ||
+      user.permissions.includes(PERMISSIONS.SETTINGS_MANAGE) ||
+      user.permissions.includes(PERMISSIONS.AUDIT_VIEW)
+    );
+  }
+  const navItem = NAV_ITEMS.find((item) => item.key === tabKey);
+  if (!navItem) return false;
+
+  if (navItem.requireCommittee && user.isCommitteeMember) {
+    return true;
+  }
+
+  if (navItem.requiredPermissions && navItem.requiredPermissions.length > 0) {
+    return navItem.requiredPermissions.some((perm) => user.permissions.includes(perm));
+  }
+
+  return true;
+}
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
   const [showMoreModal, setShowMoreModal] = useState(false);
+  const [showDevConsole, setShowDevConsole] = useState(false);
+  const [targetRoleToEdit, setTargetRoleToEdit] = useState<string | null>(null);
+  const [targetMemberToEdit, setTargetMemberToEdit] = useState<string | null>(null);
   const { user } = useAuth();
   const { isDesktop, isMobile } = useResponsive();
 
-  const primaryMobileTabs: TabKey[] = ['dashboard', 'maintenance', 'water', 'complaints'];
+  // Hidden developer shortcut: Ctrl + Shift + D or Cmd + Shift + D
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        setShowDevConsole((prev) => !prev);
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, []);
+
+  // Filter NAV_ITEMS to only items allowed for the current logged-in user
+  const permittedNavItems = NAV_ITEMS.filter((item) => isTabPermitted(item.key, user));
+
+  // Determine primary mobile tabs (max 4 permitted items)
+  const preferredMobileKeys: TabKey[] = [
+    'dashboard',
+    'maintenance',
+    'water',
+    'complaints',
+    'notifications',
+  ];
+  const mobilePrimaryTabs = preferredMobileKeys
+    .filter((key) => isTabPermitted(key, user))
+    .slice(0, 4);
+
+  // If none of preferred match except dashboard, add other permitted items
+  if (mobilePrimaryTabs.length < 3) {
+    for (const item of permittedNavItems) {
+      if (!mobilePrimaryTabs.includes(item.key) && mobilePrimaryTabs.length < 4) {
+        mobilePrimaryTabs.push(item.key);
+      }
+    }
+  }
+
+  // Drawer items are any permitted items not already on primary bottom bar
+  const moreNavItems = permittedNavItems.filter((item) => !mobilePrimaryTabs.includes(item.key));
+
+  // Sync / Guard: If current tab is not permitted for the active user, safely return to dashboard
+  useEffect(() => {
+    if (!isTabPermitted(activeTab, user)) {
+      setActiveTab('dashboard');
+    }
+  }, [user, activeTab]);
+
+  const [societyConfig, setSocietyConfig] = useState(getSocietyConfig());
+
+  useEffect(() => {
+    return subscribeToSocietyConfig((updated) => {
+      setSocietyConfig(updated);
+    });
+  }, []);
 
   const handleNav = (tab: TabKey) => {
+    if (!isTabPermitted(tab, user)) {
+      setActiveTab('dashboard');
+      setShowMoreModal(false);
+      return;
+    }
     setActiveTab(tab);
     setShowMoreModal(false);
   };
+
+  const isCurrentTabPermitted = isTabPermitted(activeTab, user);
 
   return (
     <View style={styles.appContainer}>
@@ -90,7 +294,7 @@ function AppContent() {
             <View>
               <Text style={styles.brandTitle}>{APP_NAME}</Text>
               <Text style={styles.brandSubtitle}>
-                {user?.societyCode ? `${user.societyCode} • Shanti Heights` : 'Society Management'}
+                {user?.societyCode ? `${user.societyCode} • ${societyConfig.societyName}` : societyConfig.societyName}
               </Text>
             </View>
           </Pressable>
@@ -98,6 +302,26 @@ function AppContent() {
 
         {/* User Persona Pill & Switcher */}
         <View style={styles.headerRight}>
+          {Boolean(user?.isCommitteeMember) && (
+            <Pressable
+              onPress={() => handleNav('settings')}
+              style={[
+                styles.headerSetupBtn,
+                activeTab === 'settings' && styles.headerSetupBtnActive,
+              ]}
+              accessibilityLabel="Society Setup & Customization"
+            >
+              <Text
+                style={[
+                  styles.headerSetupBtnText,
+                  activeTab === 'settings' && styles.headerSetupBtnTextActive,
+                ]}
+              >
+                ⚙️ Society Setup
+              </Text>
+            </Pressable>
+          )}
+
           {user && (
             <Pressable
               onPress={() => handleNav('login')}
@@ -119,7 +343,7 @@ function AppContent() {
         </View>
       </View>
 
-      {/* Desktop / Tablet Navigation Bar */}
+      {/* Desktop / Tablet Navigation Bar - Only permitted modules */}
       {!isMobile && (
         <View style={styles.desktopNavBar}>
           <ScrollView
@@ -127,7 +351,7 @@ function AppContent() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.desktopNavScroll}
           >
-            {NAV_ITEMS.map((item) => {
+            {permittedNavItems.map((item) => {
               const isActive = activeTab === item.key;
               return (
                 <Pressable
@@ -150,7 +374,24 @@ function AppContent() {
 
       {/* Main Screen Content View */}
       <View style={styles.screenContent}>
-        {activeTab === 'dashboard' ? (
+        {!isCurrentTabPermitted ? (
+          <View style={styles.restrictedContainer}>
+            <Card style={styles.restrictedCard} variant="elevated">
+              <Text style={styles.restrictedIcon}>🔒</Text>
+              <Text style={styles.restrictedTitle}>Access Restricted</Text>
+              <Text style={styles.restrictedDesc}>
+                Your current persona ({user?.roleTitle || 'Resident'}) does not hold permissions to
+                view or manage this module.
+              </Text>
+              <Button
+                title="Return to Dashboard"
+                variant="primary"
+                onPress={() => handleNav('dashboard')}
+                style={styles.restrictedBtn}
+              />
+            </Card>
+          </View>
+        ) : activeTab === 'dashboard' ? (
           <DashboardScreen
             onNavigateToMaintenance={() => handleNav('maintenance')}
             onNavigateToWater={() => handleNav('water')}
@@ -162,6 +403,7 @@ function AppContent() {
             onNavigateToMembers={() => handleNav('members')}
             onNavigateToRoles={() => handleNav('roles')}
             onNavigateToReports={() => handleNav('reports')}
+            onNavigateToSettings={() => handleNav('settings')}
           />
         ) : activeTab === 'maintenance' ? (
           <MaintenanceScreen />
@@ -204,10 +446,16 @@ function AppContent() {
             onNavigateToHallBooking={() => handleNav('hall_booking')}
             onNavigateToComplaints={() => handleNav('complaints')}
             onNavigateToNotifications={() => handleNav('notifications')}
-            onNavigateToRoles={() => handleNav('roles')}
+            onNavigateToRoles={(roleId, memberId) => {
+              setTargetRoleToEdit(roleId || null);
+              setTargetMemberToEdit(memberId || null);
+              handleNav('roles');
+            }}
           />
         ) : activeTab === 'roles' ? (
           <RolesPermissionsScreen
+            initialRoleIdToEdit={targetRoleToEdit}
+            initialMemberIdToEdit={targetMemberToEdit}
             onNavigateToDashboard={() => handleNav('dashboard')}
             onNavigateToMaintenance={() => handleNav('maintenance')}
             onNavigateToWater={() => handleNav('water')}
@@ -218,6 +466,7 @@ function AppContent() {
             onNavigateToNotifications={() => handleNav('notifications')}
             onNavigateToMembers={() => handleNav('members')}
             onNavigateToReports={() => handleNav('reports')}
+            onNavigateToBackend={() => handleNav('backend')}
           />
         ) : activeTab === 'reports' ? (
           <ReportsScreen
@@ -232,10 +481,16 @@ function AppContent() {
             onNavigateToMembers={() => handleNav('members')}
             onNavigateToRoles={() => handleNav('roles')}
           />
+        ) : activeTab === 'settings' ? (
+          <SocietySettingsScreen
+            onNavigateToDashboard={() => handleNav('dashboard')}
+            onNavigateToBackend={() => handleNav('backend')}
+            onNavigateToMaintenance={() => handleNav('maintenance')}
+          />
         ) : activeTab === 'backend' ? (
           <BackendIntegrationScreen
+            onClose={() => handleNav('dashboard')}
             onNavigateToDashboard={() => handleNav('dashboard')}
-            onNavigateToMaintenance={() => handleNav('maintenance')}
           />
         ) : activeTab === 'login' ? (
           <LoginScreen onNavigateToDashboard={() => handleNav('dashboard')} />
@@ -244,10 +499,24 @@ function AppContent() {
         )}
       </View>
 
-      {/* Mobile Bottom Navigation Bar */}
+      {/* Subtle Developer Hidden Access Bar (Not in main navigation) */}
+      <View style={styles.appFooterBar}>
+        <Text style={styles.footerCopyrightText}>
+          {APP_NAME} Enterprise • Secure Resident & Society Platform
+        </Text>
+        <Pressable
+          onPress={() => setShowDevConsole(true)}
+          style={styles.devTriggerButton}
+          accessibilityLabel="Open Hidden Developer API Console"
+        >
+          <Text style={styles.devTriggerText}>⚙️ Dev API (Hidden)</Text>
+        </Pressable>
+      </View>
+
+      {/* Mobile Bottom Navigation Bar - Only permitted options */}
       {isMobile && (
         <View style={styles.mobileBottomNav}>
-          {NAV_ITEMS.filter((item) => primaryMobileTabs.includes(item.key)).map((item) => {
+          {NAV_ITEMS.filter((item) => mobilePrimaryTabs.includes(item.key)).map((item) => {
             const isActive = activeTab === item.key;
             return (
               <Pressable
@@ -265,15 +534,22 @@ function AppContent() {
             );
           })}
 
-          {/* More Menu Pill */}
-          <Pressable onPress={() => setShowMoreModal(true)} style={styles.mobileNavItem}>
-            <Text style={styles.mobileNavIcon}>☰</Text>
-            <Text style={styles.mobileNavLabel}>More</Text>
-          </Pressable>
+          {/* More Menu Pill - Only if there are additional permitted modules */}
+          {moreNavItems.length > 0 && (
+            <Pressable onPress={() => setShowMoreModal(true)} style={styles.mobileNavItem}>
+              <View style={styles.moreIconWrapper}>
+                <Text style={styles.mobileNavIcon}>☰</Text>
+                <View style={styles.moreBadge}>
+                  <Text style={styles.moreBadgeText}>{moreNavItems.length}</Text>
+                </View>
+              </View>
+              <Text style={styles.mobileNavLabel}>More</Text>
+            </Pressable>
+          )}
         </View>
       )}
 
-      {/* Mobile "More" Full Navigation Drawer / Modal */}
+      {/* Mobile "More" Full Navigation Drawer / Modal - Only permitted modules */}
       <Modal
         visible={showMoreModal}
         transparent
@@ -284,14 +560,19 @@ function AppContent() {
           <Pressable style={styles.modalBackdropClick} onPress={() => setShowMoreModal(false)} />
           <View style={styles.moreDrawer}>
             <View style={styles.drawerHeader}>
-              <Text style={styles.drawerTitle}>All Society Modules</Text>
+              <View>
+                <Text style={styles.drawerTitle}>Authorized Society Modules</Text>
+                <Text style={styles.drawerSubtitle}>
+                  Modules accessible to your {user?.roleTitle || 'Resident'} role
+                </Text>
+              </View>
               <Pressable onPress={() => setShowMoreModal(false)} style={styles.drawerCloseBtn}>
                 <Text style={styles.drawerCloseText}>✕</Text>
               </Pressable>
             </View>
 
             <ScrollView contentContainerStyle={styles.drawerGrid}>
-              {NAV_ITEMS.map((item) => {
+              {permittedNavItems.map((item) => {
                 const isActive = activeTab === item.key;
                 return (
                   <Pressable
@@ -309,7 +590,37 @@ function AppContent() {
                 );
               })}
             </ScrollView>
+
+            {/* Hidden Developer Access in Drawer */}
+            <View style={styles.drawerFooter}>
+              <Pressable
+                onPress={() => {
+                  setShowMoreModal(false);
+                  setShowDevConsole(true);
+                }}
+                style={styles.drawerDevTrigger}
+              >
+                <Text style={styles.drawerDevTriggerText}>⚙️ Developer API & Diagnostics (Hidden)</Text>
+              </Pressable>
+            </View>
           </View>
+        </View>
+      </Modal>
+
+      {/* Hidden Developer API & Diagnostics Console Modal */}
+      <Modal
+        visible={showDevConsole}
+        animationType="slide"
+        onRequestClose={() => setShowDevConsole(false)}
+      >
+        <View style={styles.devModalContainer}>
+          <BackendIntegrationScreen
+            onClose={() => setShowDevConsole(false)}
+            onNavigateToDashboard={() => {
+              setShowDevConsole(false);
+              handleNav('dashboard');
+            }}
+          />
         </View>
       </Modal>
     </View>
@@ -318,7 +629,7 @@ function AppContent() {
 
 export default function App() {
   return (
-    <SafeAreaProvider style={{ flex: 1, backgroundColor: colors.background }}>
+    <SafeAreaProvider style={{ flex: 1, minHeight: '100%', width: '100%' }}>
       <AuthProvider>
         <AppContent />
       </AuthProvider>
@@ -330,9 +641,10 @@ const styles = StyleSheet.create({
   appContainer: {
     flex: 1,
     backgroundColor: colors.background,
+    minHeight: '100%',
   },
   topHeader: {
-    height: 60,
+    height: 64,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.default,
@@ -341,7 +653,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     ...shadows.sm,
-    zIndex: 20,
   },
   brandRow: {
     flexDirection: 'row',
@@ -357,10 +668,10 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: borderRadius.md,
     backgroundColor: colors.primary[50],
-    borderWidth: 1,
-    borderColor: colors.primary[200],
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary[200],
   },
   logoText: {
     fontSize: 20,
@@ -368,7 +679,8 @@ const styles = StyleSheet.create({
   brandTitle: {
     fontSize: typography.sizes.base,
     fontWeight: typography.weights.bold,
-    color: colors.text.primary,
+    color: colors.primary[700],
+    lineHeight: 20,
   },
   brandSubtitle: {
     fontSize: typography.sizes.xs,
@@ -377,11 +689,32 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
+  },
+  headerSetupBtn: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    borderRadius: borderRadius.full,
+    paddingVertical: 5,
+    paddingHorizontal: spacing.sm + 2,
+  },
+  headerSetupBtnActive: {
+    backgroundColor: colors.primary[600],
+    borderColor: colors.primary[600],
+  },
+  headerSetupBtnText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.semibold,
+    color: '#15803d',
+  },
+  headerSetupBtnTextActive: {
+    color: '#ffffff',
   },
   userProfilePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.neutral[100],
+    backgroundColor: colors.neutral[50],
     borderWidth: 1,
     borderColor: colors.border.default,
     borderRadius: borderRadius.full,
@@ -392,7 +725,7 @@ const styles = StyleSheet.create({
   userAvatar: {
     width: 26,
     height: 26,
-    borderRadius: borderRadius.full,
+    borderRadius: 13,
     backgroundColor: colors.primary[600],
     alignItems: 'center',
     justifyContent: 'center',
@@ -493,26 +826,52 @@ const styles = StyleSheet.create({
     color: colors.primary[600],
     fontWeight: typography.weights.bold,
   },
+  moreIconWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: colors.primary[600],
+    borderRadius: borderRadius.full,
+    paddingHorizontal: 4,
+    minWidth: 14,
+    height: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: typography.weights.bold,
+  },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'flex-end',
   },
   modalBackdropClick: {
     flex: 1,
   },
   moreDrawer: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     maxHeight: '75%',
     padding: spacing.lg,
+    borderTopWidth: 1,
+    borderColor: colors.border.default,
     ...shadows.lg,
   },
   drawerHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
@@ -522,6 +881,11 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.lg,
     fontWeight: typography.weights.bold,
     color: colors.text.primary,
+  },
+  drawerSubtitle: {
+    fontSize: typography.sizes.xs,
+    color: colors.text.secondary,
+    marginTop: 2,
   },
   drawerCloseBtn: {
     padding: spacing.xs,
@@ -564,5 +928,89 @@ const styles = StyleSheet.create({
   drawerItemLabelActive: {
     color: colors.primary[700],
     fontWeight: typography.weights.bold,
+  },
+  restrictedContainer: {
+    flex: 1,
+    padding: spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  restrictedCard: {
+    maxWidth: 480,
+    width: '100%',
+    alignItems: 'center',
+    textAlign: 'center',
+    padding: spacing.xl,
+  },
+  restrictedIcon: {
+    fontSize: 48,
+    marginBottom: spacing.md,
+  },
+  restrictedTitle: {
+    fontSize: typography.sizes.xl,
+    fontWeight: typography.weights.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+    textAlign: 'center',
+  },
+  restrictedDesc: {
+    fontSize: typography.sizes.sm,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: spacing.lg,
+  },
+  restrictedBtn: {
+    minWidth: 180,
+  },
+  appFooterBar: {
+    height: 34,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.default,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+  },
+  footerCopyrightText: {
+    fontSize: 11,
+    color: colors.text.muted,
+  },
+  devTriggerButton: {
+    paddingVertical: 2,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.neutral[100],
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  devTriggerText: {
+    fontSize: 10,
+    color: colors.text.secondary,
+    fontFamily: 'monospace',
+    fontWeight: typography.weights.medium,
+  },
+  drawerFooter: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.default,
+    alignItems: 'center',
+  },
+  drawerDevTrigger: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.neutral[100],
+  },
+  drawerDevTriggerText: {
+    fontSize: typography.sizes.xs,
+    color: colors.text.secondary,
+    fontFamily: 'monospace',
+  },
+  devModalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
 });

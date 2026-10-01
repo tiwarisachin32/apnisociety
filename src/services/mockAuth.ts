@@ -225,14 +225,57 @@ export async function authenticateUser(credentials: LoginCredentials): Promise<U
 }
 
 /**
+ * Synchronizes MOCK_USERS with any updated permissions saved in localStorage
+ */
+export function syncUserPermissionsFromStorage(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const rawRoles = localStorage.getItem('apnisociety_roles_data');
+    if (rawRoles) {
+      const roles: any[] = JSON.parse(rawRoles);
+      roles.forEach((r) => {
+        MOCK_USERS.forEach((u) => {
+          if (u.roleId === r.id && Array.isArray(r.permissions)) {
+            u.permissions = [...r.permissions];
+            if (r.name) u.roleTitle = r.name;
+          }
+        });
+      });
+    }
+
+    MOCK_USERS.forEach((u) => {
+      const customRaw = localStorage.getItem(`apnisociety_user_perms_${u.id}`);
+      if (customRaw) {
+        const perms = JSON.parse(customRaw);
+        if (Array.isArray(perms)) {
+          u.permissions = perms;
+        }
+      }
+    });
+  } catch {
+    // Ignore storage issues
+  }
+}
+
+// Initial sync on module load
+syncUserPermissionsFromStorage();
+
+/**
  * Retrieves cached session if available
  */
 export function getSavedSession(): User | null {
   if (typeof window === 'undefined') return null;
+  syncUserPermissionsFromStorage();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      return JSON.parse(raw) as User;
+      const user = JSON.parse(raw) as User;
+      const matched = MOCK_USERS.find((u) => u.id === user.id);
+      if (matched) {
+        user.permissions = matched.permissions;
+        user.roleTitle = matched.roleTitle;
+      }
+      return user;
     }
   } catch {
     return null;

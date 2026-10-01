@@ -175,6 +175,21 @@ export default function ReportsScreen({
   const mediumDefaultersCount = defaulters.filter((d) => d.agingBucket === '31_60_days').length;
   const lowDefaultersCount = defaulters.filter((d) => d.agingBucket === '0_30_days').length;
 
+  // If user has neither permission
+  if (!canView && !canExport) {
+    return (
+      <ScreenContainer maxWidth={640}>
+        <Card title="Reports Access Restricted" subtitle="Permission required">
+          <View style={{ padding: spacing.md }}>
+            <Text style={{ fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20 }}>
+              Your current persona ({user?.roleTitle || 'Resident'}) does not hold permissions to view society financial or audit reports.
+            </Text>
+          </View>
+        </Card>
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer maxWidth={1180}>
       {/* Toast Feedback Banner */}
@@ -218,21 +233,25 @@ export default function ReportsScreen({
 
         {/* Action Buttons Top */}
         <View style={styles.headerActions}>
-          <Button
-            title="📥 Export Full Report (CSV/PDF)"
-            variant="primary"
-            size="md"
-            onPress={() => setShowExportModal(true)}
-          />
-          <Button
-            title="📢 Defaulters Notice Desk"
-            variant="outline"
-            size="md"
-            onPress={() => {
-              setActiveTab('defaulters');
-              setAgingFilter('60_plus_days');
-            }}
-          />
+          {canExport && (
+            <Button
+              title="📥 Export Full Report (CSV/PDF)"
+              variant="primary"
+              size="md"
+              onPress={() => setShowExportModal(true)}
+            />
+          )}
+          {(canExport || user?.isCommitteeMember) && (
+            <Button
+              title="📢 Defaulters Notice Desk"
+              variant="outline"
+              size="md"
+              onPress={() => {
+                setActiveTab('defaulters');
+                setAgingFilter('60_plus_days');
+              }}
+            />
+          )}
           <Button
             title="🔄 Reset Demo Data"
             variant="ghost"
@@ -1734,13 +1753,15 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
   },
   modalContainer: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderRadius: borderRadius.lg,
     width: '100%',
     maxWidth: 580,
@@ -1748,6 +1769,8 @@ const styles = StyleSheet.create({
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
   modalHeader: {
     flexDirection: 'row',

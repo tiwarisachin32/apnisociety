@@ -209,6 +209,21 @@ export default function WaterScreen() {
     }
   };
 
+  // If user has neither permission
+  if (!canView && !canRecordMeter && !canManageSlabs) {
+    return (
+      <ScreenContainer maxWidth={640}>
+        <Card title="Water Meter Access Restricted" subtitle="Permission required">
+          <View style={{ padding: spacing.md }}>
+            <Text style={{ fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20 }}>
+              Your current persona ({user?.roleTitle || 'User'}) does not hold permissions to view or record water meters.
+            </Text>
+          </View>
+        </Card>
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer maxWidth={1120}>
       {/* Toast Banner */}
@@ -2000,18 +2015,22 @@ const styles = StyleSheet.create({
   // Modals Shared
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
   },
   modalBox: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     width: '100%',
     maxWidth: 520,
     maxHeight: '90%',
+    borderWidth: 1,
+    borderColor: colors.border.default,
     ...shadows.lg,
   },
   modalHeader: {

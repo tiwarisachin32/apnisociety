@@ -89,17 +89,47 @@ export const Card: React.FC<CardProps> = ({
   const paddingStyle = getPaddingStyle();
   const variantStyle = getVariantStyle();
 
-  const CardContainer = onPress ? Pressable : View;
+  if (onPress) {
+    return (
+      <Pressable
+        testID={testID}
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.card,
+          variantStyle,
+          paddingStyle,
+          pressed && styles.pressed,
+          style,
+        ]}
+      >
+        {hasHeader && (
+          <View style={[styles.header, headerStyle]}>
+            <View style={styles.headerTitles}>
+              {title && (
+                <Text style={[styles.title, titleStyle]}>{title}</Text>
+              )}
+              {subtitle && (
+                <Text style={[styles.subtitle, subtitleStyle]}>{subtitle}</Text>
+              )}
+            </View>
+            {action && <View style={styles.headerAction}>{action}</View>}
+          </View>
+        )}
+
+        {children && <View style={[styles.content, contentStyle]}>{children}</View>}
+
+        {footer && <View style={[styles.footer, footerStyle]}>{footer}</View>}
+      </Pressable>
+    );
+  }
 
   return (
-    <CardContainer
+    <View
       testID={testID}
-      onPress={onPress}
-      style={({ pressed }: { pressed?: boolean } = {}) => [
+      style={[
         styles.card,
         variantStyle,
         paddingStyle,
-        pressed && styles.pressed,
         style,
       ]}
     >
@@ -120,12 +150,13 @@ export const Card: React.FC<CardProps> = ({
       {children && <View style={[styles.content, contentStyle]}>{children}</View>}
 
       {footer && <View style={[styles.footer, footerStyle]}>{footer}</View>}
-    </CardContainer>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     width: '100%',
     overflow: 'hidden',

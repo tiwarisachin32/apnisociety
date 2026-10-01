@@ -34,6 +34,7 @@ export interface DashboardScreenProps {
   onNavigateToMembers?: () => void;
   onNavigateToRoles?: () => void;
   onNavigateToReports?: () => void;
+  onNavigateToSettings?: () => void;
 }
 
 export default function DashboardScreen({
@@ -47,6 +48,7 @@ export default function DashboardScreen({
   onNavigateToMembers,
   onNavigateToRoles,
   onNavigateToReports,
+  onNavigateToSettings,
 }: DashboardScreenProps) {
   const { user, loginAsDemoUser, logout, hasPermission } = useAuth();
   const { isMobile, isTablet, isDesktop } = useResponsive();
@@ -288,7 +290,7 @@ export default function DashboardScreen({
               {activeUrgentNotice.message}
             </Text>
           </View>
-          {onNavigateToNotifications && (
+          {onNavigateToNotifications && hasPermission(PERMISSIONS.NOTIFICATION_VIEW) && (
             <Button
               title="View & Acknowledge →"
               variant="danger"
@@ -298,6 +300,28 @@ export default function DashboardScreen({
             />
           )}
         </View>
+      )}
+
+      {/* Society Customization & Release Center Banner for Committee/Admin */}
+      {user.isCommitteeMember && onNavigateToSettings && (
+        <Card style={styles.customizeSocietyBanner}>
+          <View style={styles.customizeBannerLeft}>
+            <View style={styles.customizeBadgeRow}>
+              <Text style={styles.customizeBadge}>⚙️ SOCIETY RELEASE & SETUP</Text>
+              <Text style={styles.customizeStatus}>Production Ready</Text>
+            </View>
+            <Text style={styles.customizeTitle}>Customize App for Society Requirements</Text>
+            <Text style={styles.customizeSubtitle}>
+              Configure legal society name, towers & flats, maintenance calculation tariffs, bank/UPI details, and clubhouse booking bylaws.
+            </Text>
+          </View>
+          <Button
+            title="Setup & Release Desk →"
+            variant="primary"
+            size="md"
+            onPress={onNavigateToSettings}
+          />
+        </Card>
       )}
 
       {/* 2. Key Metrics & Status KPIs */}
@@ -394,7 +418,9 @@ export default function DashboardScreen({
             { id: 'utilities', label: 'Water & Utilities' },
             { id: 'community', label: 'Community & Hall' },
             { id: 'operations', label: 'Operations & Tickets' },
-          ].map((cat) => {
+          ]
+            .filter((cat) => cat.id === 'all' || availableActions.some((a) => a.category === cat.id))
+            .map((cat) => {
             const isActive = selectedCategory === cat.id;
             return (
               <Pressable
@@ -1115,18 +1141,22 @@ const styles = StyleSheet.create({
   // Modals
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
   },
   modalBox: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     width: '100%',
     maxWidth: 520,
     maxHeight: '85%',
+    borderWidth: 1,
+    borderColor: colors.border.default,
     ...shadows.lg,
   },
   modalHeader: {
@@ -1293,5 +1323,53 @@ const styles = StyleSheet.create({
   },
   emergencyActionBtn: {
     alignSelf: 'center',
+  },
+  customizeSocietyBanner: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  customizeBannerLeft: {
+    flex: 1,
+    minWidth: 260,
+  },
+  customizeBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: 4,
+  },
+  customizeBadge: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: '#15803d',
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  customizeStatus: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: '#15803d',
+  },
+  customizeTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: '#14532d',
+    marginBottom: 2,
+  },
+  customizeSubtitle: {
+    fontSize: typography.sizes.xs,
+    color: '#166534',
+    lineHeight: 16,
   },
 });

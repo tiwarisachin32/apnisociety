@@ -26,6 +26,8 @@ import {
   getPermissionsByModule,
   getRolesSummaryMetrics,
   resetDemoRoles,
+  toggleRolePermission,
+  updateMemberDirectPermissions,
   updateRole,
 } from '../services/mockRoles';
 import { SocietyMember } from '../types/members';
@@ -40,6 +42,8 @@ import {
 } from '../types/roles';
 
 export interface RolesPermissionsScreenProps {
+  initialRoleIdToEdit?: string | null;
+  initialMemberIdToEdit?: string | null;
   onNavigateToDashboard?: () => void;
   onNavigateToMaintenance?: () => void;
   onNavigateToWater?: () => void;
@@ -50,9 +54,12 @@ export interface RolesPermissionsScreenProps {
   onNavigateToNotifications?: () => void;
   onNavigateToMembers?: () => void;
   onNavigateToReports?: () => void;
+  onNavigateToBackend?: () => void;
 }
 
 export default function RolesPermissionsScreen({
+  initialRoleIdToEdit,
+  initialMemberIdToEdit,
   onNavigateToDashboard,
   onNavigateToMaintenance,
   onNavigateToWater,
@@ -63,12 +70,17 @@ export default function RolesPermissionsScreen({
   onNavigateToNotifications,
   onNavigateToMembers,
   onNavigateToReports,
+  onNavigateToBackend,
 }: RolesPermissionsScreenProps) {
-  const { user, loginAsDemoUser, hasPermission } = useAuth();
+  const { user, loginAsDemoUser, hasPermission, refreshSession } = useAuth();
   const { isMobile, isTablet, isDesktop } = useResponsive();
 
   const canManage = hasPermission(PERMISSIONS.ROLES_MANAGE);
   const canView = hasPermission(PERMISSIONS.ROLES_VIEW);
+  const isAdminOrPresident =
+    user?.roleId === 'role-president' ||
+    user?.isCommitteeMember ||
+    canManage;
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'catalog' | 'matrix' | 'assignments' | 'audit' | 'simulator'>('catalog');
@@ -79,6 +91,7 @@ export default function RolesPermissionsScreen({
   const [metrics, setMetrics] = useState<RolesSummaryMetrics>(() => getRolesSummaryMetrics());
   const [members, setMembers] = useState<SocietyMember[]>(() => getAllMembers());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [quickMemberPickId, setQuickMemberPickId] = useState<string>('');
 
   // Filters for Catalog
   const [categoryFilter, setCategoryFilter] = useState<'all' | RoleCategory>('all');
@@ -92,6 +105,16 @@ export default function RolesPermissionsScreen({
   const [selectedRoleForDetail, setSelectedRoleForDetail] = useState<SocietyRole | null>(null);
   const [selectedUserForAssign, setSelectedUserForAssign] = useState<SocietyMember | null>(null);
   const [showPersonaModal, setShowPersonaModal] = useState(false);
+
+  // Edit Role Permissions Modal State (Allows modifying VC, Treasurer, Owner, etc.)
+  const [editingRole, setEditingRole] = useState<SocietyRole | null>(null);
+  const [editRolePermissions, setEditRolePermissions] = useState<PermissionType[]>([]);
+  const [editRoleDesc, setEditRoleDesc] = useState('');
+  const [editRoleError, setEditRoleError] = useState('');
+
+  // Edit Direct Member Permissions Modal State
+  const [editingMember, setEditingMember] = useState<SocietyMember | null>(null);
+  const [editMemberPermissions, setEditMemberPermissions] = useState<PermissionType[]>([]);
 
   // Form State for Create/Edit Role
   const [formName, setFormName] = useState('');
@@ -113,6 +136,27 @@ export default function RolesPermissionsScreen({
   useEffect(() => {
     reloadAll();
   }, [user?.id]);
+
+  // If navigated with initial role or member target (e.g. from Members screen or President desk)
+  useEffect(() => {
+    if (initialRoleIdToEdit) {
+      const allR = getAllRoles();
+      const r = allR.find((item) => item.id === initialRoleIdToEdit);
+      if (r) {
+        handleOpenEditRole(r);
+      }
+    }
+  }, [initialRoleIdToEdit]);
+
+  useEffect(() => {
+    if (initialMemberIdToEdit) {
+      const allM = getAllMembers();
+      const m = allM.find((item) => item.id === initialMemberIdToEdit);
+      if (m) {
+        handleOpenEditMember(m);
+      }
+    }
+  }, [initialMemberIdToEdit]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -223,6 +267,143 @@ export default function RolesPermissionsScreen({
     }
   };
 
+  // =========================================================================
+  // Role Permission Editing (VC, Treasurer, Owner, Tenant & Custom Roles)
+  // =========================================================================
+  const handleOpenEditRole = (role: SocietyRole) => {
+    setEditingRole(role);
+    setEditRolePermissions([...role.permissions]);
+    setEditRoleDesc(role.description);
+    setEditRoleError('');
+  };
+
+  const handleToggleEditRolePermission = (permId: PermissionType) => {
+    if (editRolePermissions.includes(permId)) {
+      setEditRolePermissions(editRolePermissions.filter((p) => p !== permId));
+    } else {
+      setEditRolePermissions([...editRolePermissions, permId]);
+    }
+  };
+
+  const handleToggleEditRoleModule = (moduleKey: PermissionModule) => {
+    const modulePerms = ALL_PERMISSION_DEFINITIONS.filter((p) => p.module === moduleKey).map((p) => p.id);
+    const allSelected = modulePerms.every((p) => editRolePermissions.includes(p));
+    if (allSelected) {
+      setEditRolePermissions(editRolePermissions.filter((p) => !modulePerms.includes(p)));
+    } else {
+      setEditRolePermissions(Array.from(new Set([...editRolePermissions, ...modulePerms])));
+    }
+  };
+
+  const handleSaveEditRole = () => {
+    if (!editingRole) return;
+    if (editRolePermissions.length === 0) {
+      setEditRoleError('Please select at least one permission capability.');
+      return;
+    }
+
+    try {
+      const updated = updateRole(
+        editingRole.id,
+        {
+          permissions: editRolePermissions,
+          description: editRoleDesc.trim() || editingRole.description,
+        },
+        user?.name ? `${user.name} (${user.roleTitle})` : 'President'
+      );
+      reloadAll();
+      refreshSession();
+      setEditingRole(null);
+      showToast(`✅ Permissions for "${updated.name}" updated (${updated.permissions.length} capabilities active)!`);
+    } catch (err: unknown) {
+      setEditRoleError(err instanceof Error ? err.message : 'Failed to update role');
+    }
+  };
+
+  const handleQuickToggleMatrix = (roleId: string, permId: PermissionType) => {
+    if (!isAdminOrPresident) return;
+    try {
+      const updated = toggleRolePermission(
+        roleId,
+        permId,
+        user?.name ? `${user.name} (${user.roleTitle})` : 'President'
+      );
+      reloadAll();
+      refreshSession();
+      const hasPerm = updated.permissions.includes(permId);
+      const permDef = ALL_PERMISSION_DEFINITIONS.find((p) => p.id === permId);
+      showToast(
+        `${hasPerm ? '✅ Granted' : '🚫 Revoked'} "${permDef?.name || permId}" for ${updated.name}!`
+      );
+    } catch (err: unknown) {
+      showToast(`⚠️ ${err instanceof Error ? err.message : 'Toggle failed'}`);
+    }
+  };
+
+  // =========================================================================
+  // Member Direct Privileges Customization
+  // =========================================================================
+  const handleOpenEditMember = (member: SocietyMember) => {
+    setEditingMember(member);
+    const mockUser = MOCK_USERS.find((u) => u.id === member.id);
+    if (mockUser) {
+      setEditMemberPermissions([...mockUser.permissions]);
+    } else {
+      const role =
+        roles.find((r) => r.name.toLowerCase().includes(member.residentType)) ||
+        (member.isCommitteeMember
+          ? roles.find((r) => r.id === 'role-president') || roles[0]
+          : roles.find((r) => r.id === 'role-owner') || roles[0]);
+      setEditMemberPermissions([...role.permissions]);
+    }
+  };
+
+  const handleToggleEditMemberPermission = (permId: PermissionType) => {
+    if (editMemberPermissions.includes(permId)) {
+      setEditMemberPermissions(editMemberPermissions.filter((p) => p !== permId));
+    } else {
+      setEditMemberPermissions([...editMemberPermissions, permId]);
+    }
+  };
+
+  const handleToggleEditMemberModule = (moduleKey: PermissionModule) => {
+    const modulePerms = ALL_PERMISSION_DEFINITIONS.filter((p) => p.module === moduleKey).map((p) => p.id);
+    const allSelected = modulePerms.every((p) => editMemberPermissions.includes(p));
+    if (allSelected) {
+      setEditMemberPermissions(editMemberPermissions.filter((p) => !modulePerms.includes(p)));
+    } else {
+      setEditMemberPermissions(Array.from(new Set([...editMemberPermissions, ...modulePerms])));
+    }
+  };
+
+  const handleResetMemberToRoleDefaults = () => {
+    if (!editingMember) return;
+    const assignedRole =
+      roles.find((r) => r.name.toLowerCase().includes(editingMember.residentType)) ||
+      (editingMember.isCommitteeMember
+        ? roles.find((r) => r.id === 'role-president') || roles[0]
+        : roles.find((r) => r.id === 'role-owner') || roles[0]);
+    setEditMemberPermissions([...assignedRole.permissions]);
+    showToast(`Reset capabilities to default ${assignedRole.name} permissions.`);
+  };
+
+  const handleSaveMemberPermissions = () => {
+    if (!editingMember) return;
+    try {
+      const res = updateMemberDirectPermissions(
+        editingMember.id,
+        editMemberPermissions,
+        user?.name ? `${user.name} (${user.roleTitle})` : 'President'
+      );
+      reloadAll();
+      refreshSession();
+      setEditingMember(null);
+      showToast(`✅ Custom privileges updated for ${editingMember.name} (${res.count} capabilities active)!`);
+    } catch (err: unknown) {
+      showToast(`⚠️ ${err instanceof Error ? err.message : 'Failed to update member permissions'}`);
+    }
+  };
+
   // Filtered Roles
   const filteredRoles = roles.filter((r) => {
     if (categoryFilter !== 'all' && r.category !== categoryFilter) return false;
@@ -244,6 +425,21 @@ export default function RolesPermissionsScreen({
   const simUserRole = roles.find((r) => r.id === simUser.roleId) || roles[0];
   const simHasPerm = simUser.permissions.includes(simPermissionId);
   const simPermDef = ALL_PERMISSION_DEFINITIONS.find((p) => p.id === simPermissionId);
+
+  // If user has neither permission
+  if (!canView && !canManage) {
+    return (
+      <ScreenContainer maxWidth={640}>
+        <Card title="Roles & Access Restricted" subtitle="Permission required">
+          <View style={{ padding: spacing.md }}>
+            <Text style={{ fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20 }}>
+              Access to enterprise Role-Based Access Control (RBAC) governance is restricted to Society Administrators and Committee Members.
+            </Text>
+          </View>
+        </Card>
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer maxWidth={1180}>
@@ -288,20 +484,30 @@ export default function RolesPermissionsScreen({
 
         {/* Action Buttons Top */}
         <View style={styles.headerActions}>
-          <Button
-            title="➕ Create Custom Role"
-            variant="primary"
-            size="md"
-            onPress={() => {
-              setFormName('');
-              setFormDesc('');
-              setFormCategory('custom');
-              setFormIcon('🛡️');
-              setFormPermissions([PERMISSIONS.NOTIFICATION_VIEW, PERMISSIONS.MEMBERS_VIEW]);
-              setFormError('');
-              setShowCreateModal(true);
-            }}
-          />
+          {canManage && (
+            <Button
+              title="➕ Create Custom Role"
+              variant="primary"
+              size="md"
+              onPress={() => {
+                setFormName('');
+                setFormDesc('');
+                setFormCategory('custom');
+                setFormIcon('🛡️');
+                setFormPermissions([PERMISSIONS.NOTIFICATION_VIEW, PERMISSIONS.MEMBERS_VIEW]);
+                setFormError('');
+                setShowCreateModal(true);
+              }}
+            />
+          )}
+          {onNavigateToBackend && (
+            <Button
+              title="⚡ API Backend & Architecture"
+              variant="outline"
+              size="md"
+              onPress={onNavigateToBackend}
+            />
+          )}
           <Button
             title="🔍 Live RBAC Simulator"
             variant="outline"
@@ -450,6 +656,214 @@ export default function RolesPermissionsScreen({
             </View>
           </Card>
 
+          {/* Executive Quick Roles Bar for Admin/President */}
+          {isAdminOrPresident && (
+            <Card style={styles.quickRolesCard}>
+              <View style={styles.quickRolesHeader}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' }}>
+                    <Text style={styles.quickRolesTitle}>👑 President & Executive Governance Controls</Text>
+                    <View style={styles.adminBadge}>
+                      <Text style={styles.adminBadgeText}>Super Admin / President Desk</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.quickRolesSubtitle}>
+                    Modify, grant, or revoke permissions for Vice President (VC), Treasurer, and custom privileges for all society members in real-time.
+                  </Text>
+                </View>
+              </View>
+
+              {/* VC & Treasurer Direct Executive Action Cards */}
+              <View style={[styles.execCardsGrid, isMobile && { flexDirection: 'column' }]}>
+                {/* Vice President (VC) Card */}
+                {(() => {
+                  const vcRole = roles.find((r) => r.id === 'role-vice-president');
+                  const vcUser = MOCK_USERS.find((u) => u.roleId === 'role-vice-president');
+                  if (!vcRole) return null;
+                  return (
+                    <View style={styles.execCard}>
+                      <View style={styles.execCardTop}>
+                        <View style={[styles.execIconCircle, { backgroundColor: '#f3e8ff' }]}>
+                          <Text style={{ fontSize: 24 }}>⚡</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
+                            <Text style={styles.execRoleTitle}>Vice President (VC)</Text>
+                            <View style={styles.execTagPill}>
+                              <Text style={styles.execTagPillText}>Operations & Civil</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.execHolderText}>
+                            Incumbent: <Text style={{ fontWeight: 'bold' }}>{vcUser?.name || 'Meera Joshi'}</Text> (Flat {vcUser?.flatNumber || 'D-302'})
+                          </Text>
+                          <Text style={styles.execPermCount}>
+                            {vcRole.permissions.length} capabilities active
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.execQuickLabel}>Quick Toggle Key Capabilities:</Text>
+                      <View style={styles.execTogglesRow}>
+                        {[
+                          { id: PERMISSIONS.HALL_APPROVE, label: 'Hall Approvals' },
+                          { id: PERMISSIONS.COMPLAINT_RESOLVE, label: 'Resolve Complaints' },
+                          { id: PERMISSIONS.NOTIFICATION_BROADCAST, label: 'Broadcast Notices' },
+                          { id: PERMISSIONS.MAINTENANCE_MANAGE, label: 'Manage Maintenance' },
+                        ].map((item) => {
+                          const isGranted = vcRole.permissions.includes(item.id);
+                          return (
+                            <Pressable
+                              key={item.id}
+                              onPress={() => handleQuickToggleMatrix(vcRole.id, item.id)}
+                              style={[
+                                styles.execToggleChip,
+                                isGranted && styles.execToggleChipActive,
+                              ]}
+                            >
+                              <Text style={[styles.execToggleText, isGranted && styles.execToggleTextActive]}>
+                                {isGranted ? '✓' : '+'} {item.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+
+                      <Button
+                        title="✏️ Modify VC Permissions (Full Matrix)"
+                        variant="primary"
+                        size="sm"
+                        onPress={() => handleOpenEditRole(vcRole)}
+                        style={{ marginTop: spacing.sm }}
+                      />
+                    </View>
+                  );
+                })()}
+
+                {/* Treasurer Card */}
+                {(() => {
+                  const trRole = roles.find((r) => r.id === 'role-treasurer');
+                  const trUser = MOCK_USERS.find((u) => u.roleId === 'role-treasurer');
+                  if (!trRole) return null;
+                  return (
+                    <View style={styles.execCard}>
+                      <View style={styles.execCardTop}>
+                        <View style={[styles.execIconCircle, { backgroundColor: '#dcfce7' }]}>
+                          <Text style={{ fontSize: 24 }}>💰</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
+                            <Text style={styles.execRoleTitle}>Treasurer (Accounts & Billing)</Text>
+                            <View style={[styles.execTagPill, { backgroundColor: '#dcfce7' }]}>
+                              <Text style={[styles.execTagPillText, { color: '#15803d' }]}>Finance & Budget</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.execHolderText}>
+                            Incumbent: <Text style={{ fontWeight: 'bold' }}>{trUser?.name || 'Amit Saxena'}</Text> (Flat {trUser?.flatNumber || 'B-104'})
+                          </Text>
+                          <Text style={styles.execPermCount}>
+                            {trRole.permissions.length} capabilities active
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.execQuickLabel}>Quick Toggle Key Financial Powers:</Text>
+                      <View style={styles.execTogglesRow}>
+                        {[
+                          { id: PERMISSIONS.EXPENSES_MANAGE, label: 'Manage Expenses' },
+                          { id: PERMISSIONS.REIMBURSEMENT_APPROVE, label: 'Approve Reimbursements' },
+                          { id: PERMISSIONS.WATER_MANAGE_SLABS, label: 'Water Slabs' },
+                          { id: PERMISSIONS.MAINTENANCE_MANAGE, label: 'Maintenance Bills' },
+                        ].map((item) => {
+                          const isGranted = trRole.permissions.includes(item.id);
+                          return (
+                            <Pressable
+                              key={item.id}
+                              onPress={() => handleQuickToggleMatrix(trRole.id, item.id)}
+                              style={[
+                                styles.execToggleChip,
+                                isGranted && styles.execToggleChipActive,
+                              ]}
+                            >
+                              <Text style={[styles.execToggleText, isGranted && styles.execToggleTextActive]}>
+                                {isGranted ? '✓' : '+'} {item.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+
+                      <Button
+                        title="✏️ Modify Treasurer Permissions (Full Matrix)"
+                        variant="primary"
+                        size="sm"
+                        onPress={() => handleOpenEditRole(trRole)}
+                        style={{ marginTop: spacing.sm }}
+                      />
+                    </View>
+                  );
+                })()}
+              </View>
+
+              {/* Secretary, Joint Sec, Owner & Tenant Quick Bar */}
+              <Text style={[styles.execQuickLabel, { marginTop: spacing.md }]}>
+                Modify Other Society Roles & Designations:
+              </Text>
+              <View style={styles.quickRolesRow}>
+                {roles
+                  .filter((r) =>
+                    ['role-secretary', 'role-joint-secretary', 'role-owner', 'role-tenant'].includes(r.id)
+                  )
+                  .map((r) => (
+                    <Pressable
+                      key={r.id}
+                      style={styles.quickRoleChip}
+                      onPress={() => handleOpenEditRole(r)}
+                    >
+                      <Text style={styles.quickRoleIcon}>{r.icon}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.quickRoleName}>{r.name.split(' (')[0]}</Text>
+                        <Text style={styles.quickRolePerms}>{r.permissions.length} capabilities</Text>
+                      </View>
+                      <Text style={styles.quickRoleEditIcon}>✏️ Edit</Text>
+                    </Pressable>
+                  ))}
+              </View>
+
+              {/* Direct Individual Member Privileges Quick Customizer */}
+              <View style={styles.quickMemberBox}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.quickMemberTitle}>👤 Customize Individual Member Privileges Directly:</Text>
+                  <Text style={styles.quickMemberSubtitle}>
+                    Grant special administrative or operational overrides to any specific resident without altering default roles.
+                  </Text>
+                </View>
+                <View style={[styles.quickMemberPickerRow, isMobile && { flexDirection: 'column', alignItems: 'stretch' }]}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxWidth: isMobile ? 320 : 540 }}>
+                    <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                      {members.slice(0, 8).map((m) => (
+                        <Pressable
+                          key={m.id}
+                          onPress={() => handleOpenEditMember(m)}
+                          style={styles.quickMemberChip}
+                        >
+                          <Text style={styles.quickMemberChipName}>{m.name.split(' ')[0]}</Text>
+                          <Text style={styles.quickMemberChipFlat}>{m.flatNumber}</Text>
+                          <Text style={styles.quickMemberChipEdit}>⚡ Edit</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
+                  <Button
+                    title="View All Members in Governance Tab 👥"
+                    variant="outline"
+                    size="sm"
+                    onPress={() => setActiveTab('assignments')}
+                  />
+                </View>
+              </View>
+            </Card>
+          )}
+
           {/* Roles Grid */}
           <View style={styles.rolesGrid}>
             {filteredRoles.map((role) => (
@@ -508,6 +922,14 @@ export default function RolesPermissionsScreen({
 
                 {/* Card Actions */}
                 <View style={styles.roleCardActions}>
+                  {isAdminOrPresident && (
+                    <Button
+                      title="✏️ Edit Permissions"
+                      variant="primary"
+                      size="sm"
+                      onPress={() => handleOpenEditRole(role)}
+                    />
+                  )}
                   <Button
                     title="Inspect Capabilities"
                     variant="outline"
@@ -602,6 +1024,14 @@ export default function RolesPermissionsScreen({
                       <Text style={styles.matrixThRoleTitle} numberOfLines={2}>
                         {r.name}
                       </Text>
+                      {isAdminOrPresident && (
+                        <Pressable
+                          style={styles.matrixThEditBtn}
+                          onPress={() => handleOpenEditRole(r)}
+                        >
+                          <Text style={styles.matrixThEditText}>✏️ Edit</Text>
+                        </Pressable>
+                      )}
                     </View>
                   ))}
                 </View>
@@ -646,7 +1076,18 @@ export default function RolesPermissionsScreen({
                             {roles.map((r) => {
                               const hasPerm = r.permissions.includes(perm.id);
                               return (
-                                <View key={r.id} style={styles.matrixTdRole}>
+                                <Pressable
+                                  key={r.id}
+                                  style={[
+                                    styles.matrixTdRole,
+                                    isAdminOrPresident && styles.matrixTdRoleClickable,
+                                  ]}
+                                  onPress={
+                                    isAdminOrPresident
+                                      ? () => handleQuickToggleMatrix(r.id, perm.id)
+                                      : undefined
+                                  }
+                                >
                                   {hasPerm ? (
                                     <View style={styles.matrixGrantedBadge}>
                                       <Text style={styles.matrixGrantedText}>✓</Text>
@@ -654,7 +1095,7 @@ export default function RolesPermissionsScreen({
                                   ) : (
                                     <Text style={styles.matrixDeniedText}>—</Text>
                                   )}
-                                </View>
+                                </Pressable>
                               );
                             })}
                           </View>
@@ -678,7 +1119,7 @@ export default function RolesPermissionsScreen({
               <View>
                 <Text style={styles.assignmentsTitle}>👥 Resident & Staff Role Assignments</Text>
                 <Text style={styles.assignmentsSubtitle}>
-                  Designate committee portfolios, grant administrative privileges, or reassign units.
+                  Designate committee portfolios, grant administrative privileges, or customize individual member capabilities.
                 </Text>
               </View>
             </View>
@@ -715,16 +1156,26 @@ export default function RolesPermissionsScreen({
                       </Text>
                     </View>
 
-                    <Button
-                      title="Reassign Role"
-                      variant="outline"
-                      size="sm"
-                      onPress={() => {
-                        setSelectedUserForAssign(member);
-                        setAssignTargetRoleId(roles[0].id);
-                        setAssignNotes('');
-                      }}
-                    />
+                    <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                      {isAdminOrPresident && (
+                        <Button
+                          title="⚡ Privileges"
+                          variant="primary"
+                          size="sm"
+                          onPress={() => handleOpenEditMember(member)}
+                        />
+                      )}
+                      <Button
+                        title="Reassign Role"
+                        variant="outline"
+                        size="sm"
+                        onPress={() => {
+                          setSelectedUserForAssign(member);
+                          setAssignTargetRoleId(roles[0].id);
+                          setAssignNotes('');
+                        }}
+                      />
+                    </View>
                   </View>
                 );
               })}
@@ -1084,6 +1535,19 @@ export default function RolesPermissionsScreen({
                     onPress={() => setSelectedRoleForDetail(null)}
                     style={{ flex: 1 }}
                   />
+                  {isAdminOrPresident && (
+                    <Button
+                      title="✏️ Modify Permissions"
+                      variant="primary"
+                      size="md"
+                      onPress={() => {
+                        const r = selectedRoleForDetail;
+                        setSelectedRoleForDetail(null);
+                        handleOpenEditRole(r);
+                      }}
+                      style={{ flex: 1 }}
+                    />
+                  )}
                   {!selectedRoleForDetail.isSystemRole && canManage && (
                     <Button
                       title="Delete Custom Role"
@@ -1233,6 +1697,249 @@ export default function RolesPermissionsScreen({
                 style={{ flex: 1 }}
               />
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: EDIT ROLE PERMISSIONS (VC, Treasurer, Owners, Tenants, etc.)   */}
+      {/* ========================================================================= */}
+      <Modal visible={Boolean(editingRole)} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {editingRole && (
+              <>
+                <View style={styles.modalHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                    <Text style={{ fontSize: 26 }}>{editingRole.icon}</Text>
+                    <View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                        <Text style={styles.modalTitle}>Modify Role Permissions</Text>
+                        <View style={styles.adminBadge}>
+                          <Text style={styles.adminBadgeText}>President / Admin</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.modalSubtitle}>
+                        Role: <Text style={{ fontWeight: 'bold' }}>{editingRole.name}</Text> • {editRolePermissions.length} of {ALL_PERMISSION_DEFINITIONS.length} capabilities enabled
+                      </Text>
+                    </View>
+                  </View>
+                  <Pressable onPress={() => setEditingRole(null)} style={styles.closeModalBtn}>
+                    <Text style={styles.closeModalText}>✕</Text>
+                  </Pressable>
+                </View>
+
+                <ScrollView style={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
+                  {editRoleError.length > 0 && (
+                    <View style={styles.formErrorBox}>
+                      <Text style={styles.formErrorText}>⚠️ {editRoleError}</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.editRoleNotice}>
+                    <Text style={styles.editRoleNoticeText}>
+                      💡 Changes made here are saved to the society RBAC directory and immediately applied to all users holding the <Text style={{ fontWeight: 'bold' }}>{editingRole.name}</Text> portfolio (including VC Meera Joshi, Treasurer Amit Saxena, and relevant residents).
+                    </Text>
+                  </View>
+
+                  <Text style={styles.formFieldLabel}>Governance Description</Text>
+                  <TextInput
+                    value={editRoleDesc}
+                    onChangeText={setEditRoleDesc}
+                    multiline
+                    numberOfLines={2}
+                    style={[styles.modalInput, { height: 60, textAlignVertical: 'top' }]}
+                    placeholder="Role responsibilities..."
+                    placeholderTextColor={colors.text.muted}
+                  />
+
+                  {/* Modules Accordion / List */}
+                  <Text style={styles.formSectionSubHeader}>
+                    Configured Capabilities ({editRolePermissions.length} active)
+                  </Text>
+
+                  {(Object.keys(permsByModule) as PermissionModule[]).map((modKey) => {
+                    const modulePerms = permsByModule[modKey];
+                    const allSelected = modulePerms.every((p) => editRolePermissions.includes(p.id));
+
+                    return (
+                      <View key={modKey} style={styles.modulePermGroup}>
+                        <View style={styles.modulePermGroupHeader}>
+                          <Text style={styles.modulePermGroupName}>
+                            {modulePerms[0].moduleLabel} ({modulePerms.filter((p) => editRolePermissions.includes(p.id)).length}/{modulePerms.length})
+                          </Text>
+                          <Pressable onPress={() => handleToggleEditRoleModule(modKey)}>
+                            <Text style={styles.toggleModuleAllText}>
+                              {allSelected ? 'Deselect All' : 'Select All'}
+                            </Text>
+                          </Pressable>
+                        </View>
+
+                        <View style={styles.modulePermItemsList}>
+                          {modulePerms.map((perm) => {
+                            const isSelected = editRolePermissions.includes(perm.id);
+                            return (
+                              <Pressable
+                                key={perm.id}
+                                onPress={() => handleToggleEditRolePermission(perm.id)}
+                                style={[styles.permCheckboxRow, isSelected && styles.permCheckboxRowActive]}
+                              >
+                                <View style={[styles.checkboxSquare, isSelected && styles.checkboxSquareActive]}>
+                                  {isSelected && <Text style={styles.checkboxCheck}>✓</Text>}
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                    <Text style={styles.permCheckboxTitle}>{perm.name}</Text>
+                                    {perm.isSensitive && (
+                                      <Text style={styles.permSensitiveBadge}>🔒 Sensitive</Text>
+                                    )}
+                                  </View>
+                                  <Text style={styles.permCheckboxDesc}>{perm.description}</Text>
+                                </View>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+
+                <View style={styles.modalFooter}>
+                  <Button
+                    title="Cancel"
+                    variant="outline"
+                    size="md"
+                    onPress={() => setEditingRole(null)}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    title="Save & Enforce Permissions ✅"
+                    variant="primary"
+                    size="md"
+                    onPress={handleSaveEditRole}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: CUSTOM MEMBER PERMISSIONS OVERRIDE                              */}
+      {/* ========================================================================= */}
+      <Modal visible={Boolean(editingMember)} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {editingMember && (
+              <>
+                <View style={styles.modalHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                    <View style={styles.userAvatarCircle}>
+                      <Text style={styles.userAvatarInitial}>{editingMember.name.charAt(0)}</Text>
+                    </View>
+                    <View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                        <Text style={styles.modalTitle}>{editingMember.name}</Text>
+                        <View style={styles.adminBadge}>
+                          <Text style={styles.adminBadgeText}>Member Override</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.modalSubtitle}>
+                        {editingMember.block} Flat {editingMember.flatNumber} • {editingMember.committeeRoleTitle || (editingMember.residentType === 'tenant' ? 'Tenant' : 'Resident Owner')}
+                      </Text>
+                    </View>
+                  </View>
+                  <Pressable onPress={() => setEditingMember(null)} style={styles.closeModalBtn}>
+                    <Text style={styles.closeModalText}>✕</Text>
+                  </Pressable>
+                </View>
+
+                <ScrollView style={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
+                  <View style={styles.editRoleNotice}>
+                    <Text style={styles.editRoleNoticeText}>
+                      👤 Grant or restrict individual capabilities for <Text style={{ fontWeight: 'bold' }}>{editingMember.name}</Text> without altering the base role template.
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm }}>
+                    <Text style={styles.formSectionSubHeader}>
+                      Active Privileges ({editMemberPermissions.length} enabled)
+                    </Text>
+                    <Pressable onPress={handleResetMemberToRoleDefaults}>
+                      <Text style={{ fontSize: typography.sizes.xs, color: colors.primary[600], fontWeight: 'bold' }}>
+                        ↺ Reset to Role Defaults
+                      </Text>
+                    </Pressable>
+                  </View>
+
+                  {(Object.keys(permsByModule) as PermissionModule[]).map((modKey) => {
+                    const modulePerms = permsByModule[modKey];
+                    const allSelected = modulePerms.every((p) => editMemberPermissions.includes(p.id));
+
+                    return (
+                      <View key={modKey} style={styles.modulePermGroup}>
+                        <View style={styles.modulePermGroupHeader}>
+                          <Text style={styles.modulePermGroupName}>
+                            {modulePerms[0].moduleLabel} ({modulePerms.filter((p) => editMemberPermissions.includes(p.id)).length}/{modulePerms.length})
+                          </Text>
+                          <Pressable onPress={() => handleToggleEditMemberModule(modKey)}>
+                            <Text style={styles.toggleModuleAllText}>
+                              {allSelected ? 'Deselect All' : 'Select All'}
+                            </Text>
+                          </Pressable>
+                        </View>
+
+                        <View style={styles.modulePermItemsList}>
+                          {modulePerms.map((perm) => {
+                            const isSelected = editMemberPermissions.includes(perm.id);
+                            return (
+                              <Pressable
+                                key={perm.id}
+                                onPress={() => handleToggleEditMemberPermission(perm.id)}
+                                style={[styles.permCheckboxRow, isSelected && styles.permCheckboxRowActive]}
+                              >
+                                <View style={[styles.checkboxSquare, isSelected && styles.checkboxSquareActive]}>
+                                  {isSelected && <Text style={styles.checkboxCheck}>✓</Text>}
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                    <Text style={styles.permCheckboxTitle}>{perm.name}</Text>
+                                    {perm.isSensitive && (
+                                      <Text style={styles.permSensitiveBadge}>🔒 Sensitive</Text>
+                                    )}
+                                  </View>
+                                  <Text style={styles.permCheckboxDesc}>{perm.description}</Text>
+                                </View>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+
+                <View style={styles.modalFooter}>
+                  <Button
+                    title="Cancel"
+                    variant="outline"
+                    size="md"
+                    onPress={() => setEditingMember(null)}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    title="Save Member Privileges ✅"
+                    variant="primary"
+                    size="md"
+                    onPress={handleSaveMemberPermissions}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -1949,13 +2656,15 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
   },
   modalContainer: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderRadius: borderRadius.lg,
     width: '100%',
     maxWidth: 640,
@@ -1963,6 +2672,8 @@ const styles = StyleSheet.create({
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -2273,5 +2984,235 @@ const styles = StyleSheet.create({
   personaFlat: {
     fontSize: 11,
     color: colors.text.muted,
+  },
+  quickRolesCard: {
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  quickRolesHeader: {
+    marginBottom: spacing.sm,
+  },
+  quickRolesTitle: {
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.bold,
+    color: '#166534',
+  },
+  quickRolesSubtitle: {
+    fontSize: typography.sizes.xs,
+    color: '#15803d',
+    marginTop: 2,
+  },
+  adminBadge: {
+    backgroundColor: colors.primary[700],
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: 1,
+    borderRadius: borderRadius.sm,
+  },
+  adminBadgeText: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: '#ffffff',
+  },
+  quickRolesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  quickRoleChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: '#ffffff',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#86efac',
+    minWidth: 160,
+  },
+  quickRoleIcon: {
+    fontSize: 18,
+  },
+  quickRoleName: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
+    color: colors.text.primary,
+  },
+  quickRolePerms: {
+    fontSize: 10,
+    color: colors.text.muted,
+  },
+  quickRoleEditIcon: {
+    fontSize: 11,
+    fontWeight: typography.weights.bold,
+    color: colors.primary[600],
+    marginLeft: spacing.xs,
+  },
+  matrixThEditBtn: {
+    backgroundColor: colors.primary[50],
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+    marginTop: 4,
+    alignSelf: 'center',
+  },
+  matrixThEditText: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: colors.primary[700],
+  },
+  matrixTdRoleClickable: {
+    cursor: 'pointer' as any,
+  },
+  editRoleNotice: {
+    backgroundColor: '#eff6ff',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    marginBottom: spacing.md,
+  },
+  editRoleNoticeText: {
+    fontSize: typography.sizes.xs,
+    color: '#1e40af',
+    lineHeight: 18,
+  },
+  execCardsGrid: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
+  execCard: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: '#86efac',
+  },
+  execCardTop: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  execIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  execRoleTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: colors.text.primary,
+  },
+  execTagPill: {
+    backgroundColor: '#f3e8ff',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  execTagPillText: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: '#7e22ce',
+  },
+  execHolderText: {
+    fontSize: typography.sizes.xs,
+    color: colors.text.secondary,
+    marginTop: 1,
+  },
+  execPermCount: {
+    fontSize: 11,
+    color: colors.primary[700],
+    fontWeight: typography.weights.semibold,
+  },
+  execQuickLabel: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
+    color: '#166534',
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  execTogglesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  execToggleChip: {
+    paddingVertical: 3,
+    paddingHorizontal: spacing.xs + 2,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.neutral[100],
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  execToggleChipActive: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#86efac',
+  },
+  execToggleText: {
+    fontSize: 10,
+    color: colors.text.secondary,
+  },
+  execToggleTextActive: {
+    color: '#15803d',
+    fontWeight: typography.weights.bold,
+  },
+  quickMemberBox: {
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: '#bbf7d0',
+  },
+  quickMemberTitle: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
+    color: '#166534',
+  },
+  quickMemberSubtitle: {
+    fontSize: 11,
+    color: '#15803d',
+    marginTop: 1,
+  },
+  quickMemberPickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.xs,
+    gap: spacing.xs,
+  },
+  quickMemberChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ffffff',
+    paddingVertical: 4,
+    paddingHorizontal: spacing.xs + 2,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: '#86efac',
+  },
+  quickMemberChipName: {
+    fontSize: 11,
+    fontWeight: typography.weights.bold,
+    color: colors.text.primary,
+  },
+  quickMemberChipFlat: {
+    fontSize: 10,
+    color: colors.text.muted,
+  },
+  quickMemberChipEdit: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: colors.primary[600],
   },
 });

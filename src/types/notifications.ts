@@ -58,6 +58,7 @@ export interface BroadcastPayload {
   actionScreen?: 'maintenance' | 'water' | 'expenses' | 'reimbursements' | 'hall_booking' | 'complaints' | 'dashboard';
   actionLabel?: string;
   requiresAcknowledgement?: boolean;
+  bannerImage?: string;
 }
 
 export interface UserNotificationPreferences {

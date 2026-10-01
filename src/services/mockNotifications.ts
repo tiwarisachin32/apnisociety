@@ -303,6 +303,7 @@ export async function createBroadcastNotification(
     actionLabel: payload.actionLabel,
     requiresAcknowledgement: payload.requiresAcknowledgement,
     acknowledgedBy: sender.id ? [sender.id] : [],
+    bannerImage: payload.bannerImage,
   };
 
   notifs.unshift(newNotif);

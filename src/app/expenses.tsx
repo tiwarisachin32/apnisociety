@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { ScreenContainer } from '../components/layout/ScreenContainer';
-import { Button, Card, StatusBadge } from '../components/ui';
+import { Button, Card, FileUpload, StatusBadge } from '../components/ui';
 import { APP_NAME, PERMISSIONS } from '../constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
@@ -68,6 +68,8 @@ export default function ExpensesScreen() {
   const [expPaymentMode, setExpPaymentMode] = useState<'NetBanking' | 'Cheque' | 'UPI' | 'Petty Cash'>('NetBanking');
   const [expTxnRef, setExpTxnRef] = useState('');
   const [expInvoiceNo, setExpInvoiceNo] = useState('');
+  const [expFileName, setExpFileName] = useState('');
+  const [expFileUrl, setExpFileUrl] = useState('');
   const [expDesc, setExpDesc] = useState('');
   const [isSavingExpense, setIsSavingExpense] = useState(false);
 
@@ -78,6 +80,7 @@ export default function ExpensesScreen() {
   const [claimAmount, setClaimAmount] = useState('');
   const [claimBillNo, setClaimBillNo] = useState('');
   const [claimFileName, setClaimFileName] = useState('Invoice_Proof_Receipt.pdf');
+  const [claimFileUrl, setClaimFileUrl] = useState('');
   const [claimJustification, setClaimJustification] = useState('');
   const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
 
@@ -159,6 +162,8 @@ export default function ExpensesScreen() {
       setExpVendor('');
       setExpTxnRef('');
       setExpInvoiceNo('');
+      setExpFileName('');
+      setExpFileUrl('');
       setExpDesc('');
       showToast(`Expense voucher created for ₹${parsedAmt.toLocaleString('en-IN')}`);
     } catch {
@@ -199,6 +204,8 @@ export default function ExpensesScreen() {
       setClaimTitle('');
       setClaimAmount('');
       setClaimBillNo('');
+      setClaimFileName('Invoice_Proof_Receipt.pdf');
+      setClaimFileUrl('');
       setClaimJustification('');
       showToast(`Reimbursement claim submitted for ₹${parsedAmt.toLocaleString('en-IN')}`);
     } catch {
@@ -267,6 +274,21 @@ export default function ExpensesScreen() {
     }
   };
 
+  // If user has neither permission
+  if (!canViewExpenses && !canManageExpenses && !canSubmitClaim && !canApproveClaim) {
+    return (
+      <ScreenContainer maxWidth={640}>
+        <Card title="Expenses & Ledger Restricted" subtitle="Permission required">
+          <View style={{ padding: spacing.md }}>
+            <Text style={{ fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20 }}>
+              Your current persona ({user?.roleTitle || 'Resident'}) does not hold permissions to view society expense vouchers or file reimbursement claims.
+            </Text>
+          </View>
+        </Card>
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer maxWidth={1120}>
       {/* Toast Notification */}
@@ -317,14 +339,16 @@ export default function ExpensesScreen() {
             </Pressable>
           )}
 
-          <Pressable
-            onPress={() => setActiveTab('claims')}
-            style={[styles.tabButton, activeTab === 'claims' && styles.tabButtonActive]}
-          >
-            <Text style={[styles.tabButtonText, activeTab === 'claims' && styles.tabButtonTextActive]}>
-              Reimbursements ({budget.reimbursementsPendingCount} Pending)
-            </Text>
-          </Pressable>
+          {(canSubmitClaim || canApproveClaim) && (
+            <Pressable
+              onPress={() => setActiveTab('claims')}
+              style={[styles.tabButton, activeTab === 'claims' && styles.tabButtonActive]}
+            >
+              <Text style={[styles.tabButtonText, activeTab === 'claims' && styles.tabButtonTextActive]}>
+                Reimbursements ({budget.reimbursementsPendingCount} Pending)
+              </Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -587,13 +611,15 @@ export default function ExpensesScreen() {
               </Text>
             </View>
 
-            <View style={styles.claimsHeaderActions}>
-              <Button
-                title="+ Submit New Claim"
-                variant="primary"
-                onPress={() => setShowClaimModal(true)}
-              />
-            </View>
+            {canSubmitClaim && (
+              <View style={styles.claimsHeaderActions}>
+                <Button
+                  title="+ Submit New Claim"
+                  variant="primary"
+                  onPress={() => setShowClaimModal(true)}
+                />
+              </View>
+            )}
           </View>
 
           {/* Status Filter Tabs */}
@@ -861,6 +887,22 @@ export default function ExpensesScreen() {
                 placeholderTextColor={colors.neutral[400]}
               />
 
+              <FileUpload
+                label="Vendor Invoice / Bill Copy (PDF / Image)"
+                description="Upload tax invoice or cash receipt for society records"
+                accept="image/*,.pdf,.doc,.docx"
+                currentFileName={expFileName}
+                currentFileUrl={expFileUrl}
+                onFileSelect={(file) => {
+                  setExpFileName(file.name);
+                  if (file.dataUrl) setExpFileUrl(file.dataUrl);
+                }}
+                onClear={() => {
+                  setExpFileName('');
+                  setExpFileUrl('');
+                }}
+              />
+
               <Text style={styles.fieldLabel}>Detailed Scope / Notes</Text>
               <TextInput
                 value={expDesc}
@@ -978,12 +1020,21 @@ export default function ExpensesScreen() {
                 ))}
               </View>
 
-              <Text style={styles.fieldLabel}>Receipt Attachment (PDF / JPG)</Text>
-              <View style={styles.attachmentBox}>
-                <Text style={styles.attachmentIcon}>📎</Text>
-                <Text style={styles.attachmentNameText}>{claimFileName}</Text>
-                <StatusBadge status="paid" label="ATTACHED" size="sm" showDot={false} />
-              </View>
+              <FileUpload
+                label="Receipt / Bill Attachment (PDF / JPG)"
+                description="Upload scanned store bill, GST invoice or payment voucher"
+                accept="image/*,.pdf,.doc,.docx"
+                currentFileName={claimFileName}
+                currentFileUrl={claimFileUrl}
+                onFileSelect={(file) => {
+                  setClaimFileName(file.name);
+                  if (file.dataUrl) setClaimFileUrl(file.dataUrl);
+                }}
+                onClear={() => {
+                  setClaimFileName('');
+                  setClaimFileUrl('');
+                }}
+              />
 
               <Text style={styles.fieldLabel}>Justification / Reason for Expense</Text>
               <TextInput
@@ -1743,18 +1794,22 @@ const styles = StyleSheet.create({
   // Modals
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
   },
   modalBox: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     width: '100%',
     maxWidth: 580,
     maxHeight: '90%',
+    borderWidth: 1,
+    borderColor: colors.border.default,
     ...shadows.lg,
   },
   modalHeader: {

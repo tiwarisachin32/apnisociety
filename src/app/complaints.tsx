@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { ScreenContainer } from '../components/layout/ScreenContainer';
-import { Button, Card, StatusBadge } from '../components/ui';
+import { Button, Card, FileUpload, StatusBadge } from '../components/ui';
 import { APP_NAME, PERMISSIONS } from '../constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
@@ -101,6 +101,7 @@ export default function ComplaintsScreen({
   const [formPriority, setFormPriority] = useState<ComplaintPriority>('medium');
   const [formSlot, setFormSlot] = useState<'morning' | 'afternoon' | 'evening'>('morning');
   const [formAttachment, setFormAttachment] = useState<string>('Damaged_Photo_Proof.jpg');
+  const [formAttachmentUrl, setFormAttachmentUrl] = useState<string>('');
 
   // Assign Staff Modal State
   const [selectedAssignTicket, setSelectedAssignTicket] = useState<ComplaintTicket | null>(null);
@@ -205,6 +206,8 @@ export default function ComplaintsScreen({
       setFormTitle('');
       setFormDesc('');
       setFormLocation('');
+      setFormAttachment('Damaged_Photo_Proof.jpg');
+      setFormAttachmentUrl('');
       setActiveTab('my_tickets');
     } catch {
       setIsSubmittingLog(false);
@@ -1119,12 +1122,24 @@ export default function ComplaintsScreen({
                 </View>
               </View>
 
-              {/* Photo Proof Simulation */}
-              <Text style={styles.inputLabel}>8. Photo / Attachment Proof</Text>
-              <View style={styles.attachmentBox}>
-                <Text style={styles.attachmentText}>📎 {formAttachment}</Text>
-                <Text style={styles.attachmentSub}>Simulated camera capture attached</Text>
-              </View>
+              {/* Working Photo & Document Attachment Upload */}
+              <FileUpload
+                label="8. Photo / Attachment Proof"
+                description="Upload photo of damaged area, meter reading, or invoice"
+                accept="image/*,.pdf,.doc,.docx"
+                currentFileName={formAttachment}
+                currentFileUrl={formAttachmentUrl}
+                onFileSelect={(file) => {
+                  setFormAttachment(file.name);
+                  if (file.dataUrl) {
+                    setFormAttachmentUrl(file.dataUrl);
+                  }
+                }}
+                onClear={() => {
+                  setFormAttachment('');
+                  setFormAttachmentUrl('');
+                }}
+              />
             </ScrollView>
 
             <View style={styles.modalFooter}>
@@ -2110,7 +2125,9 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
@@ -2120,7 +2137,11 @@ const styles = StyleSheet.create({
     maxWidth: 620,
     maxHeight: '90%',
     padding: spacing.lg,
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',

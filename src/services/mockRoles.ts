@@ -654,6 +654,33 @@ export function updateRole(
   roles[index] = updatedRole;
   saveRoles([...roles]);
 
+  // Synchronize users in MOCK_USERS who hold this role (e.g. VC Meera Joshi, Treasurer Amit Saxena, etc.)
+  if (updates.permissions) {
+    MOCK_USERS.forEach((u) => {
+      if (u.roleId === id) {
+        u.permissions = [...updates.permissions!];
+        if (updates.name) u.roleTitle = updates.name;
+      }
+    });
+
+    // Also update session in localStorage if active logged-in user holds this role
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('apnisociety_user_session');
+        if (raw) {
+          const session = JSON.parse(raw);
+          if (session.roleId === id) {
+            session.permissions = [...updates.permissions!];
+            if (updates.name) session.roleTitle = updates.name;
+            localStorage.setItem('apnisociety_user_session', JSON.stringify(session));
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    }
+  }
+
   // Log audit
   const auditLogs = getStoredAuditLogs();
   const newAudit: RoleAssignmentAudit = {
@@ -665,11 +692,75 @@ export function updateRole(
     action: 'permissions_updated',
     previousRole: existing.name,
     newRole: updatedRole.name,
-    notes: `Updated permissions/metadata for ${updatedRole.name}.`,
+    notes: `Updated permissions/metadata for ${updatedRole.name} (${updatedRole.permissions.length} active permissions).`,
   };
   saveAuditLogs([newAudit, ...auditLogs]);
 
   return updatedRole;
+}
+
+export function toggleRolePermission(
+  roleId: string,
+  permissionId: PermissionType,
+  performedBy = 'Col. S. K. Verma (President)'
+): SocietyRole {
+  const role = getRoleById(roleId);
+  if (!role) throw new Error(`Role ${roleId} not found`);
+
+  const hasPerm = role.permissions.includes(permissionId);
+  const newPerms = hasPerm
+    ? role.permissions.filter((p) => p !== permissionId)
+    : [...role.permissions, permissionId];
+
+  return updateRole(roleId, { permissions: newPerms }, performedBy);
+}
+
+export function updateMemberDirectPermissions(
+  userId: string,
+  newPermissions: PermissionType[],
+  performedBy = 'Col. S. K. Verma (President)'
+): { success: boolean; user?: (typeof MOCK_USERS)[0]; count: number } {
+  const targetUser = MOCK_USERS.find((u) => u.id === userId);
+  if (!targetUser) {
+    return { success: false, count: 0 };
+  }
+
+  const previousCount = targetUser.permissions.length;
+  targetUser.permissions = [...newPermissions];
+
+  // Update session in localStorage if active user
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('apnisociety_user_session');
+      if (raw) {
+        const session = JSON.parse(raw);
+        if (session.id === userId) {
+          session.permissions = [...newPermissions];
+          localStorage.setItem('apnisociety_user_session', JSON.stringify(session));
+        }
+      }
+      localStorage.setItem(`apnisociety_user_perms_${userId}`, JSON.stringify(newPermissions));
+    } catch {
+      // Ignore
+    }
+  }
+
+  // Log audit
+  const auditLogs = getStoredAuditLogs();
+  const newAudit: RoleAssignmentAudit = {
+    id: `audit-${Date.now()}`,
+    timestamp: new Date().toLocaleString(),
+    performedBy,
+    targetUserName: targetUser.name,
+    targetUserFlat: `${targetUser.block} ${targetUser.flatNumber}`,
+    action: 'permissions_updated',
+    previousRole: targetUser.roleTitle,
+    newRole: targetUser.roleTitle,
+    notes: `Modified member permissions directly (${previousCount} -> ${newPermissions.length} capabilities).`,
+  };
+  saveAuditLogs([newAudit, ...auditLogs]);
+
+  return { success: true, user: targetUser, count: newPermissions.length };
 }
 
 export function deleteRole(id: string, performedBy = 'Col. S. K. Verma (President)'): void {

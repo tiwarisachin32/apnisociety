@@ -1573,18 +1573,22 @@ const styles = StyleSheet.create({
   // Modals Styling
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
   },
   modalBox: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     width: '100%',
     maxWidth: 520,
     maxHeight: '90%',
+    borderWidth: 1,
+    borderColor: colors.border.default,
     ...shadows.lg,
   },
   receiptModalBox: {

@@ -13,6 +13,7 @@ interface AuthContextType extends AuthState {
   loginAsDemoUser: (userOrId: string | User) => Promise<void>;
   logout: () => void;
   hasPermission: (permission: PermissionType) => boolean;
+  refreshSession: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -122,6 +123,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return state.user.permissions.includes(permission);
   };
 
+  const refreshSession = () => {
+    try {
+      const saved = getSavedSession();
+      if (saved) {
+        setState((prev) => ({
+          ...prev,
+          user: saved,
+        }));
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -130,6 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginAsDemoUser,
         logout,
         hasPermission,
+        refreshSession,
       }}
     >
       {children}

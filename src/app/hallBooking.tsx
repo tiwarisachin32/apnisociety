@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { ScreenContainer } from '../components/layout/ScreenContainer';
-import { Button, Card, StatusBadge } from '../components/ui';
+import { Button, Card, FileUpload, StatusBadge } from '../components/ui';
 import { APP_NAME, PERMISSIONS } from '../constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
@@ -92,6 +92,8 @@ export default function HallBookingScreen({
   const [formSoundSystem, setFormSoundSystem] = useState(true);
   const [formCateringPermit, setFormCateringPermit] = useState(true);
   const [formSpecialRequests, setFormSpecialRequests] = useState('');
+  const [formAttachmentName, setFormAttachmentName] = useState('');
+  const [formAttachmentUrl, setFormAttachmentUrl] = useState('');
   const [formPaymentMethod, setFormPaymentMethod] = useState<'UPI' | 'Card' | 'NetBanking'>('UPI');
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [bookingError, setBookingError] = useState('');
@@ -175,6 +177,8 @@ export default function HallBookingScreen({
       setShowBookingModal(false);
       setFormEventTitle('');
       setFormSpecialRequests('');
+      setFormAttachmentName('');
+      setFormAttachmentUrl('');
       // Open Gate Pass immediately
       setSelectedGatePass(newBooking);
       setActiveTab('my_bookings');
@@ -238,6 +242,21 @@ export default function HallBookingScreen({
   const currentDeposit = currentFormFacility.securityDeposit;
   const currentCleaning = currentFormFacility.cleaningFee;
   const currentTotal = currentRent + currentDeposit + currentCleaning;
+
+  // If user has neither permission
+  if (!canBook && !canApprove && !hasPermission(PERMISSIONS.HALL_VIEW_CALENDAR)) {
+    return (
+      <ScreenContainer maxWidth={640}>
+        <Card title="Hall Booking Access Restricted" subtitle="Permission required">
+          <View style={{ padding: spacing.md }}>
+            <Text style={{ fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20 }}>
+              Your current persona ({user?.roleTitle || 'User'}) does not hold permissions to view or book community facilities.
+            </Text>
+          </View>
+        </Card>
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer>
@@ -327,14 +346,16 @@ export default function HallBookingScreen({
           </Text>
         </Pressable>
 
-        <Pressable
-          style={[styles.tabButton, activeTab === 'my_bookings' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('my_bookings')}
-        >
-          <Text style={[styles.tabButtonText, activeTab === 'my_bookings' && styles.tabButtonTextActive]}>
-            🎟️ My Bookings ({myBookings.length})
-          </Text>
-        </Pressable>
+        {canBook && (
+          <Pressable
+            style={[styles.tabButton, activeTab === 'my_bookings' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('my_bookings')}
+          >
+            <Text style={[styles.tabButtonText, activeTab === 'my_bookings' && styles.tabButtonTextActive]}>
+              🎟️ My Bookings ({myBookings.length})
+            </Text>
+          </Pressable>
+        )}
 
         {canApprove && (
           <Pressable
@@ -1165,6 +1186,23 @@ export default function HallBookingScreen({
                 placeholder="Any special table layout, power requirements, or extra chairs..."
                 multiline
                 numberOfLines={2}
+              />
+
+              {/* Event Invitation / ID Proof / Guest List Document Upload */}
+              <FileUpload
+                label="9. Event Invitation Card / ID Proof / Guest List (Optional)"
+                description="Upload digital invitation card, resident ID proof, or decorator permit request"
+                accept="image/*,.pdf,.doc,.docx"
+                currentFileName={formAttachmentName}
+                currentFileUrl={formAttachmentUrl}
+                onFileSelect={(file) => {
+                  setFormAttachmentName(file.name);
+                  if (file.dataUrl) setFormAttachmentUrl(file.dataUrl);
+                }}
+                onClear={() => {
+                  setFormAttachmentName('');
+                  setFormAttachmentUrl('');
+                }}
               />
 
               {/* Fee Breakdown Box */}
@@ -2126,7 +2164,9 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
@@ -2136,7 +2176,11 @@ const styles = StyleSheet.create({
     maxWidth: 620,
     maxHeight: '90%',
     padding: spacing.lg,
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',

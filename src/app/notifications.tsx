@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { ScreenContainer } from '../components/layout/ScreenContainer';
-import { Button, Card, StatusBadge } from '../components/ui';
+import { Button, Card, FileUpload, StatusBadge } from '../components/ui';
 import { APP_NAME, PERMISSIONS } from '../constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
@@ -162,6 +162,8 @@ export default function NotificationsScreen({
   >('none');
   const [formActionLabel, setFormActionLabel] = useState('');
   const [formRequireAck, setFormRequireAck] = useState(false);
+  const [formAttachmentName, setFormAttachmentName] = useState('');
+  const [formAttachmentUrl, setFormAttachmentUrl] = useState('');
 
   // Reload helper
   const reloadData = () => {
@@ -282,6 +284,7 @@ export default function NotificationsScreen({
         actionScreen: formActionScreen === 'none' ? undefined : formActionScreen,
         actionLabel: formActionLabel.trim() || undefined,
         requiresAcknowledgement: formRequireAck,
+        bannerImage: formAttachmentUrl || undefined,
       };
 
       await createBroadcastNotification(payload, {
@@ -296,6 +299,8 @@ export default function NotificationsScreen({
       setFormTitle('');
       setFormMessage('');
       setFormActionLabel('');
+      setFormAttachmentName('');
+      setFormAttachmentUrl('');
       setActiveTab('inbox');
       if (preferences.soundAlerts) {
         if (formUrgency === 'critical') {
@@ -1305,6 +1310,23 @@ export default function NotificationsScreen({
                 )}
               </View>
 
+              {/* Notice Attachment / Circular / Banner Image */}
+              <FileUpload
+                label="Circular / Notice Document / Image Attachment (Optional)"
+                description="Attach official society circular PDF, event banner, or AGM agenda"
+                accept="image/*,.pdf,.doc,.docx"
+                currentFileName={formAttachmentName}
+                currentFileUrl={formAttachmentUrl}
+                onFileSelect={(file) => {
+                  setFormAttachmentName(file.name);
+                  if (file.dataUrl) setFormAttachmentUrl(file.dataUrl);
+                }}
+                onClear={() => {
+                  setFormAttachmentName('');
+                  setFormAttachmentUrl('');
+                }}
+              />
+
               {/* Acknowledgement Required Check */}
               <View style={styles.ackCheckRow}>
                 <Switch
@@ -2131,7 +2153,9 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
@@ -2141,7 +2165,11 @@ const styles = StyleSheet.create({
     maxWidth: 620,
     maxHeight: '90%',
     padding: spacing.lg,
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',

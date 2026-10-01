@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { ScreenContainer } from '../components/layout/ScreenContainer';
-import { Button, Card, StatusBadge } from '../components/ui';
+import { Button, Card, FileUpload, StatusBadge } from '../components/ui';
 import { APP_NAME, PERMISSIONS } from '../constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
@@ -160,6 +160,7 @@ export default function ReimbursementsScreen({
   const [formMerchant, setFormMerchant] = useState('');
   const [formBillNumber, setFormBillNumber] = useState('');
   const [formProofDoc, setFormProofDoc] = useState(SAMPLE_PROOF_DOCS[0]);
+  const [formProofFileUrl, setFormProofFileUrl] = useState('');
   const [formJustification, setFormJustification] = useState('');
   const [formPayoutType, setFormPayoutType] = useState<'upi' | 'bank_account'>('upi');
   const [formUpiId, setFormUpiId] = useState(
@@ -265,6 +266,8 @@ export default function ReimbursementsScreen({
       setFormAmount('');
       setFormMerchant('');
       setFormBillNumber('');
+      setFormProofDoc(SAMPLE_PROOF_DOCS[0]);
+      setFormProofFileUrl('');
       setFormJustification('');
       setActiveTab('my_claims');
     } catch {
@@ -340,6 +343,21 @@ export default function ReimbursementsScreen({
     }
   };
 
+  // If user has neither permission
+  if (!canSubmitClaim && !canApproveClaim) {
+    return (
+      <ScreenContainer maxWidth={640}>
+        <Card title="Reimbursements Access Restricted" subtitle="Permission required">
+          <View style={{ padding: spacing.md }}>
+            <Text style={{ fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20 }}>
+              Your current persona ({user?.roleTitle || 'Resident'}) does not hold permissions to file or approve society reimbursement claims.
+            </Text>
+          </View>
+        </Card>
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer>
       {/* Header Banner */}
@@ -398,7 +416,7 @@ export default function ReimbursementsScreen({
               }}
             />
           )}
-          {onNavigateToExpenses && (
+          {onNavigateToExpenses && hasPermission(PERMISSIONS.EXPENSES_VIEW) && (
             <Button
               title="Society Budget & Expenses →"
               variant="outline"
@@ -1122,37 +1140,32 @@ export default function ReimbursementsScreen({
                     onChangeText={setFormBillNumber}
                   />
                 </View>
-                <View style={styles.twoColItem}>
-                  <Text style={styles.inputLabel}>Proof Document Attached</Text>
-                  <View style={styles.proofPickerBox}>
-                    <Text style={styles.proofPickerSelected}>📎 {formProofDoc.name}</Text>
-                  </View>
-                </View>
               </View>
 
-              {/* Select from simulated proofs */}
-              <Text style={styles.inputHint}>Choose proof attachment type:</Text>
-              <View style={styles.proofDocsRow}>
-                {SAMPLE_PROOF_DOCS.map((doc, idx) => (
-                  <Pressable
-                    key={idx}
-                    style={[
-                      styles.proofChip,
-                      formProofDoc.name === doc.name && styles.proofChipSelected,
-                    ]}
-                    onPress={() => setFormProofDoc(doc)}
-                  >
-                    <Text
-                      style={[
-                        styles.proofChipText,
-                        formProofDoc.name === doc.name && styles.proofChipTextSelected,
-                      ]}
-                    >
-                      {doc.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              {/* Real Working Proof Upload */}
+              <FileUpload
+                label="Proof Document / Receipt / GST Invoice *"
+                description="Upload scanned store bill, vendor work slip, or cash receipt"
+                accept="image/*,.pdf,.doc,.docx"
+                currentFileName={formProofDoc.name}
+                currentFileUrl={formProofFileUrl}
+                onFileSelect={(file) => {
+                  setFormProofDoc({
+                    name: file.name,
+                    label: file.name,
+                    type: file.name.toLowerCase().endsWith('.pdf') ? 'tax_invoice' : 'cash_memo',
+                  });
+                  if (file.dataUrl) setFormProofFileUrl(file.dataUrl);
+                }}
+                onClear={() => {
+                  setFormProofDoc({
+                    name: '',
+                    label: '',
+                    type: 'tax_invoice',
+                  });
+                  setFormProofFileUrl('');
+                }}
+              />
 
               {/* Justification */}
               <Text style={styles.inputLabel}>Justification & Purpose for Society *</Text>
@@ -2446,7 +2459,9 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
@@ -2456,7 +2471,11 @@ const styles = StyleSheet.create({
     maxWidth: 620,
     maxHeight: '90%',
     padding: spacing.lg,
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',
