@@ -60,6 +60,12 @@ export const PERMISSIONS = {
   AUDIT_VIEW: 'audit:view',
   REPORTS_VIEW: 'reports:view',
   REPORTS_EXPORT: 'reports:export',
+
+  // Platform App Owner Exclusive Capabilities
+  APP_DEPLOY: 'app:deploy',
+  API_VIEW_DETAILS: 'api:view_details',
+  SOCIETY_CREATE: 'society:create',
+  DATABASE_MANAGE: 'database:manage',
 } as const;
 
 export type PermissionType = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

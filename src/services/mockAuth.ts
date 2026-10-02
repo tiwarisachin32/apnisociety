@@ -7,48 +7,51 @@ import { LoginCredentials, User } from '../types/auth';
  */
 export const MOCK_USERS: User[] = [
   {
-    id: 'user-001',
-    name: 'Rahul Sharma',
-    email: 'rahul.owner@apnisociety.com',
-    phone: '9876543210',
-    societyId: 'soc-01',
-    societyName: 'Shanti Heights RWA',
-    societyCode: 'SH-402',
-    block: 'Tower B',
-    flatNumber: 'B-402',
-    roleId: 'role-owner',
-    roleTitle: 'Owner (Resident)',
-    isCommitteeMember: false,
+    id: 'user-app-owner',
+    name: 'Sachin Tiwari',
+    email: 'tiwari.sachin322136@gmail.com',
+    phone: '9820011223',
+    societyId: 'all',
+    societyName: 'ApniSociety Platform (Global)',
+    societyCode: 'PLATFORM',
+    block: 'HQ',
+    flatNumber: 'HQ-1',
+    roleId: 'role-app-owner',
+    roleTitle: 'App Owner (Platform Super-Admin)',
+    isCommitteeMember: true,
+    isAppOwner: true,
     permissions: [
+      PERMISSIONS.APP_DEPLOY,
+      PERMISSIONS.API_VIEW_DETAILS,
+      PERMISSIONS.SOCIETY_CREATE,
+      PERMISSIONS.DATABASE_MANAGE,
       PERMISSIONS.MAINTENANCE_VIEW,
+      PERMISSIONS.MAINTENANCE_MANAGE,
       PERMISSIONS.MAINTENANCE_PAY,
       PERMISSIONS.WATER_VIEW,
+      PERMISSIONS.WATER_RECORD_METER,
+      PERMISSIONS.WATER_MANAGE_SLABS,
+      PERMISSIONS.EXPENSES_VIEW,
+      PERMISSIONS.EXPENSES_MANAGE,
+      PERMISSIONS.REIMBURSEMENT_SUBMIT,
+      PERMISSIONS.REIMBURSEMENT_APPROVE,
       PERMISSIONS.HALL_VIEW_CALENDAR,
       PERMISSIONS.HALL_BOOK,
+      PERMISSIONS.HALL_APPROVE,
       PERMISSIONS.COMPLAINT_RAISE,
+      PERMISSIONS.COMPLAINT_VIEW_ALL,
+      PERMISSIONS.COMPLAINT_ASSIGN,
+      PERMISSIONS.COMPLAINT_RESOLVE,
       PERMISSIONS.NOTIFICATION_VIEW,
+      PERMISSIONS.NOTIFICATION_BROADCAST,
       PERMISSIONS.MEMBERS_VIEW,
+      PERMISSIONS.MEMBERS_MANAGE,
+      PERMISSIONS.ROLES_VIEW,
+      PERMISSIONS.ROLES_MANAGE,
+      PERMISSIONS.SETTINGS_MANAGE,
+      PERMISSIONS.AUDIT_VIEW,
       PERMISSIONS.REPORTS_VIEW,
-    ],
-  },
-  {
-    id: 'user-002',
-    name: 'Priya Patel',
-    email: 'priya.tenant@apnisociety.com',
-    phone: '9876543211',
-    societyId: 'soc-01',
-    societyName: 'Shanti Heights RWA',
-    societyCode: 'SH-402',
-    block: 'Tower A',
-    flatNumber: 'A-201',
-    roleId: 'role-tenant',
-    roleTitle: 'Tenant',
-    isCommitteeMember: false,
-    permissions: [
-      PERMISSIONS.WATER_VIEW,
-      PERMISSIONS.HALL_VIEW_CALENDAR,
-      PERMISSIONS.COMPLAINT_RAISE,
-      PERMISSIONS.NOTIFICATION_VIEW,
+      PERMISSIONS.REPORTS_EXPORT,
     ],
   },
   {
@@ -64,6 +67,7 @@ export const MOCK_USERS: User[] = [
     roleId: 'role-president',
     roleTitle: 'President (Management Committee)',
     isCommitteeMember: true,
+    isAppOwner: false,
     permissions: [
       PERMISSIONS.MAINTENANCE_VIEW,
       PERMISSIONS.MAINTENANCE_MANAGE,
@@ -89,6 +93,54 @@ export const MOCK_USERS: User[] = [
       PERMISSIONS.AUDIT_VIEW,
       PERMISSIONS.REPORTS_VIEW,
       PERMISSIONS.REPORTS_EXPORT,
+      // Note: Col Verma is Society President; CANNOT deploy app, view raw API secrets, or create new societies
+    ],
+  },
+  {
+    id: 'user-001',
+    name: 'Rahul Sharma',
+    email: 'rahul.owner@apnisociety.com',
+    phone: '9876543210',
+    societyId: 'soc-01',
+    societyName: 'Shanti Heights RWA',
+    societyCode: 'SH-402',
+    block: 'Tower B',
+    flatNumber: 'B-402',
+    roleId: 'role-owner',
+    roleTitle: 'Owner (Resident)',
+    isCommitteeMember: false,
+    isAppOwner: false,
+    permissions: [
+      PERMISSIONS.MAINTENANCE_VIEW,
+      PERMISSIONS.MAINTENANCE_PAY,
+      PERMISSIONS.WATER_VIEW,
+      PERMISSIONS.HALL_VIEW_CALENDAR,
+      PERMISSIONS.HALL_BOOK,
+      PERMISSIONS.COMPLAINT_RAISE,
+      PERMISSIONS.NOTIFICATION_VIEW,
+      PERMISSIONS.MEMBERS_VIEW,
+      PERMISSIONS.REPORTS_VIEW,
+    ],
+  },
+  {
+    id: 'user-002',
+    name: 'Priya Patel',
+    email: 'priya.tenant@apnisociety.com',
+    phone: '9876543211',
+    societyId: 'soc-01',
+    societyName: 'Shanti Heights RWA',
+    societyCode: 'SH-402',
+    block: 'Tower A',
+    flatNumber: 'A-201',
+    roleId: 'role-tenant',
+    roleTitle: 'Tenant',
+    isCommitteeMember: false,
+    isAppOwner: false,
+    permissions: [
+      PERMISSIONS.WATER_VIEW,
+      PERMISSIONS.HALL_VIEW_CALENDAR,
+      PERMISSIONS.COMPLAINT_RAISE,
+      PERMISSIONS.NOTIFICATION_VIEW,
     ],
   },
   {
@@ -167,7 +219,16 @@ export async function authenticateUser(credentials: LoginCredentials): Promise<U
   const trimmed = credentials.identifier.trim().toLowerCase();
 
   // Find user by email, phone, or flat number
-  const matchedUser = MOCK_USERS.find(
+  let dynamicUsers: User[] = [];
+  if (typeof window !== 'undefined') {
+    try {
+      const customRaw = localStorage.getItem('apnisociety_custom_users');
+      if (customRaw) dynamicUsers = JSON.parse(customRaw);
+    } catch {}
+  }
+  const allUsers = [...MOCK_USERS, ...dynamicUsers];
+
+  const matchedUser = allUsers.find(
     (u) =>
       u.email.toLowerCase() === trimmed ||
       u.phone === trimmed ||
@@ -274,6 +335,7 @@ export function getSavedSession(): User | null {
       if (matched) {
         user.permissions = matched.permissions;
         user.roleTitle = matched.roleTitle;
+        user.isAppOwner = matched.isAppOwner;
       }
       return user;
     }

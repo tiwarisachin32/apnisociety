@@ -167,40 +167,39 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     key: 'settings',
-    label: 'Society Setup & Release',
-    icon: '⚙️',
+    label: 'App Company Console',
+    icon: '🏢',
     category: 'admin',
-    requireCommittee: true,
+    requiredPermissions: [PERMISSIONS.SOCIETY_CREATE],
   },
   {
     key: 'backend',
     label: 'API Backend',
     icon: '⚡',
     category: 'admin',
-    requireCommittee: true,
+    requiredPermissions: [PERMISSIONS.API_VIEW_DETAILS],
   },
 ];
 
 export function isTabPermitted(tabKey: TabKey, user: User | null): boolean {
   if (tabKey === 'login' || tabKey === 'dashboard') return true;
   if (!user) return false;
-  if (tabKey === 'settings' || tabKey === 'backend') {
-    return Boolean(
-      user.isCommitteeMember ||
-      user.permissions.includes(PERMISSIONS.ROLES_MANAGE) ||
-      user.permissions.includes(PERMISSIONS.SETTINGS_MANAGE) ||
-      user.permissions.includes(PERMISSIONS.AUDIT_VIEW)
-    );
+  if (tabKey === 'backend') {
+    return Boolean(user.isAppOwner || user.permissions.includes(PERMISSIONS.API_VIEW_DETAILS));
+  }
+  // Setup & Release / App Company Console is strictly restricted to App Owner
+  if (tabKey === 'settings') {
+    return Boolean(user.isAppOwner);
   }
   const navItem = NAV_ITEMS.find((item) => item.key === tabKey);
   if (!navItem) return false;
 
-  if (navItem.requireCommittee && user.isCommitteeMember) {
-    return true;
-  }
-
   if (navItem.requiredPermissions && navItem.requiredPermissions.length > 0) {
     return navItem.requiredPermissions.some((perm) => user.permissions.includes(perm));
+  }
+
+  if (navItem.requireCommittee && user.isCommitteeMember) {
+    return true;
   }
 
   return true;
@@ -215,19 +214,21 @@ function AppContent() {
   const { user } = useAuth();
   const { isDesktop, isMobile } = useResponsive();
 
-  // Hidden developer shortcut: Ctrl + Shift + D or Cmd + Shift + D
+  // Hidden developer shortcut: Ctrl + Shift + D or Cmd + Shift + D (Restricted to App Owner)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
-        setShowDevConsole((prev) => !prev);
+        if (user?.isAppOwner || user?.permissions?.includes(PERMISSIONS.API_VIEW_DETAILS)) {
+          setShowDevConsole((prev) => !prev);
+        }
       }
     };
     if (typeof window !== 'undefined') {
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
-  }, []);
+  }, [user]);
 
   // Filter NAV_ITEMS to only items allowed for the current logged-in user
   const permittedNavItems = NAV_ITEMS.filter((item) => isTabPermitted(item.key, user));
@@ -503,18 +504,20 @@ function AppContent() {
         )}
       </View>
 
-      {/* Subtle Developer Hidden Access Bar (Not in main navigation) */}
+      {/* Subtle Developer Hidden Access Bar (Strictly restricted to App Owner) */}
       <View style={styles.appFooterBar}>
         <Text style={styles.footerCopyrightText}>
           {APP_NAME} Enterprise • Secure Resident & Society Platform
         </Text>
-        <Pressable
-          onPress={() => setShowDevConsole(true)}
-          style={styles.devTriggerButton}
-          accessibilityLabel="Open Hidden Developer API Console"
-        >
-          <Text style={styles.devTriggerText}>⚙️ Dev API (Hidden)</Text>
-        </Pressable>
+        {Boolean(user?.isAppOwner || user?.permissions?.includes(PERMISSIONS.API_VIEW_DETAILS)) && (
+          <Pressable
+            onPress={() => setShowDevConsole(true)}
+            style={styles.devTriggerButton}
+            accessibilityLabel="Open Platform API Console"
+          >
+            <Text style={styles.devTriggerText}>⚙️ App Owner API Console</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Mobile Bottom Navigation Bar - Only permitted options */}
@@ -595,18 +598,20 @@ function AppContent() {
               })}
             </ScrollView>
 
-            {/* Hidden Developer Access in Drawer */}
-            <View style={styles.drawerFooter}>
-              <Pressable
-                onPress={() => {
-                  setShowMoreModal(false);
-                  setShowDevConsole(true);
-                }}
-                style={styles.drawerDevTrigger}
-              >
-                <Text style={styles.drawerDevTriggerText}>⚙️ Developer API & Diagnostics (Hidden)</Text>
-              </Pressable>
-            </View>
+            {/* Hidden Developer Access in Drawer (Strictly App Owner only) */}
+            {Boolean(user?.isAppOwner || user?.permissions?.includes(PERMISSIONS.API_VIEW_DETAILS)) && (
+              <View style={styles.drawerFooter}>
+                <Pressable
+                  onPress={() => {
+                    setShowMoreModal(false);
+                    setShowDevConsole(true);
+                  }}
+                  style={styles.drawerDevTrigger}
+                >
+                  <Text style={styles.drawerDevTriggerText}>⚙️ Developer API & Diagnostics (Owner)</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         </View>
       </Modal>

@@ -289,21 +289,66 @@ export default function BackendIntegrationScreen({
     }
   };
 
-  const isAuthorized =
-    user?.isCommitteeMember ||
-    (user && (user.permissions.includes(PERMISSIONS.SETTINGS_MANAGE) || user.permissions.includes(PERMISSIONS.AUDIT_VIEW)));
+  const isAuthorized = Boolean(
+    user?.isAppOwner ||
+    (user && user.permissions.includes(PERMISSIONS.API_VIEW_DETAILS))
+  );
 
   if (!isAuthorized) {
     return (
-      <ScreenContainer maxWidth={640}>
-        <Card title="🔒 Developer Diagnostics Restricted" subtitle="Committee / Admin permission required">
+      <ScreenContainer maxWidth={680}>
+        <Card
+          title="🔒 API Details Restricted to App Owner"
+          subtitle="Platform Super-Admin Authorization Required"
+        >
           <View style={{ padding: spacing.md }}>
+            <View
+              style={{
+                backgroundColor: colors.warning.background || '#FFFBEB',
+                borderColor: colors.warning.border || '#FDE68A',
+                borderWidth: 1,
+                borderRadius: borderRadius.md,
+                padding: spacing.md,
+                marginBottom: spacing.md,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: typography.sizes.base,
+                  fontWeight: typography.weights.bold,
+                  color: colors.warning.text || '#92400E',
+                  marginBottom: 6,
+                }}
+              >
+                App Owner & Society President Boundary
+              </Text>
+              <Text
+                style={{
+                  fontSize: typography.sizes.sm,
+                  color: colors.neutral[700],
+                  lineHeight: 20,
+                  marginBottom: spacing.sm,
+                }}
+              >
+                In production, API keys, backend database connections, and server endpoints are hidden from Society Presidents, Committee Members, and Residents.
+              </Text>
+              <View style={{ gap: 6, marginTop: 4 }}>
+                <Text style={{ fontSize: typography.sizes.xs, color: colors.neutral[600] }}>
+                  • <Text style={{ fontWeight: 'bold' }}>App Owner (Sachin Tiwari):</Text> Exclusive authority to view API details, create new societies, deploy app releases, and configure Google Cloud Firestore.
+                </Text>
+                <Text style={{ fontSize: typography.sizes.xs, color: colors.neutral[600] }}>
+                  • <Text style={{ fontWeight: 'bold' }}>Society President:</Text> Full administrative power over their society (maintenance rates, billing, water slabs, complaints, expenses, approvals), but cannot see backend API secrets or deploy the app.
+                </Text>
+              </View>
+            </View>
+
             <Text style={{ fontSize: typography.sizes.sm, color: colors.text.secondary, lineHeight: 20 }}>
-              Access to FastAPI endpoints and PostgreSQL database schema diagnostics is restricted to Developer & Admin roles. This console is hidden from standard resident navigation.
+              To view this API console, switch to the <Text style={{ fontWeight: 'bold' }}>Sachin Tiwari (App Owner)</Text> persona.
             </Text>
+
             {onClose && (
               <View style={{ marginTop: spacing.md, alignItems: 'flex-start' }}>
-                <Button title="✕ Close Console" variant="outline" size="sm" onPress={onClose} />
+                <Button title="✕ Return to Dashboard" variant="primary" size="sm" onPress={onClose} />
               </View>
             )}
           </View>

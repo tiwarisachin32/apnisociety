@@ -44,6 +44,12 @@ export const PERMISSIONS = {
   AUDIT_VIEW: 'audit:view',
   REPORTS_VIEW: 'reports:view',
   REPORTS_EXPORT: 'reports:export',
+
+  // Platform App Owner Exclusive Capabilities (Cannot be performed by Society President)
+  APP_DEPLOY: 'app:deploy',
+  API_VIEW_DETAILS: 'api:view_details',
+  SOCIETY_CREATE: 'society:create',
+  DATABASE_MANAGE: 'database:manage',
 } as const;
 
 export type PermissionKey = keyof typeof PERMISSIONS;
@@ -51,10 +57,24 @@ export type PermissionType = (typeof PERMISSIONS)[PermissionKey];
 
 /**
  * Standard Role to Permission Mappings
+ * Crucial: Society President can manage their society, but CANNOT see API details,
+ * create new societies, deploy the app, or access platform master database controls.
  */
+const PLATFORM_EXCLUSIVE_PERMS: PermissionType[] = [
+  PERMISSIONS.APP_DEPLOY,
+  PERMISSIONS.API_VIEW_DETAILS,
+  PERMISSIONS.SOCIETY_CREATE,
+  PERMISSIONS.DATABASE_MANAGE,
+];
+
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, PermissionType[]> = {
-  admin: Object.values(PERMISSIONS),
-  president: Object.values(PERMISSIONS),
+  // App Owner holds full platform capabilities
+  app_owner: Object.values(PERMISSIONS),
+
+  // Society President holds all society operational permissions, but NOT platform exclusive
+  president: Object.values(PERMISSIONS).filter((p) => !PLATFORM_EXCLUSIVE_PERMS.includes(p)),
+
+  admin: Object.values(PERMISSIONS).filter((p) => !PLATFORM_EXCLUSIVE_PERMS.includes(p)),
   secretary: [
     PERMISSIONS.MAINTENANCE_VIEW,
     PERMISSIONS.WATER_VIEW,

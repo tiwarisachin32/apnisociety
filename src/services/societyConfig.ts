@@ -4,8 +4,10 @@
  */
 
 import {
+  CreateSocietyPayload,
   SocietyConfig,
   SocietyFacilityConfig,
+  SocietyItem,
   SocietyPresetType,
   SocietyTowerConfig,
 } from '../types/societyConfig';
@@ -510,4 +512,239 @@ export function getProductionReleaseChecklist(config: SocietyConfig): ReleaseChe
       actionHint: 'All 8 user roles and security rules verified.',
     },
   ];
+}
+
+/**
+ * Multi-Society Platform Management (App Owner Exclusive)
+ */
+const SOCIETIES_LIST_KEY = 'apnisociety_all_societies_v1';
+const ACTIVE_SOCIETY_ID_KEY = 'apnisociety_active_society_id';
+
+export const INITIAL_SOCIETIES: SocietyItem[] = [
+  {
+    id: 'soc-01',
+    name: 'Shanti Heights RWA',
+    code: 'SH-402',
+    registrationNumber: 'REG/2019/MAH/HSG/4981',
+    city: 'Navi Mumbai',
+    state: 'Maharashtra',
+    totalUnits: 208,
+    presidentName: 'Col. S. K. Verma',
+    presidentEmail: 'president@apnisociety.com',
+    presidentPhone: '9876543212',
+    createdAt: '2023-01-15T00:00:00.000Z',
+    status: 'active',
+  },
+  {
+    id: 'soc-02',
+    name: 'Palm Grove Residency',
+    code: 'PGR-12',
+    registrationNumber: 'REG/2021/KA/BLR/8812',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    totalUnits: 140,
+    presidentName: 'Dr. Ramesh Nambiar',
+    presidentEmail: 'ramesh.president@palmgrove.in',
+    presidentPhone: '9845011223',
+    createdAt: '2024-04-10T00:00:00.000Z',
+    status: 'active',
+  },
+];
+
+export function getAllSocieties(): SocietyItem[] {
+  if (typeof window === 'undefined') return INITIAL_SOCIETIES;
+  try {
+    const raw = localStorage.getItem(SOCIETIES_LIST_KEY);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch {}
+  return INITIAL_SOCIETIES;
+}
+
+export function saveAllSocieties(societies: SocietyItem[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(SOCIETIES_LIST_KEY, JSON.stringify(societies));
+  } catch {}
+}
+
+export function getActiveSocietyId(): string {
+  if (typeof window === 'undefined') return 'soc-01';
+  try {
+    return localStorage.getItem(ACTIVE_SOCIETY_ID_KEY) || 'soc-01';
+  } catch {
+    return 'soc-01';
+  }
+}
+
+/**
+ * Creates a brand new Society on the platform and onboards its Society President.
+ * Strictly callable only by the Platform App Owner.
+ */
+export function createSociety(payload: CreateSocietyPayload): {
+  society: SocietyItem;
+  config: SocietyConfig;
+  presidentUser: any;
+} {
+  const societyId = `soc-${Date.now().toString(36).slice(-5)}`;
+  const cleanCode = payload.societyCode.trim().toUpperCase();
+
+  // 1. Build Society Item
+  const newSocietyItem: SocietyItem = {
+    id: societyId,
+    name: payload.societyName.trim(),
+    code: cleanCode,
+    registrationNumber: payload.registrationNumber?.trim() || `REG/${new Date().getFullYear()}/${cleanCode}`,
+    city: payload.city.trim(),
+    state: payload.state.trim(),
+    totalUnits: Number(payload.totalUnitsCount) || 120,
+    presidentName: payload.presidentName.trim(),
+    presidentEmail: payload.presidentEmail.trim().toLowerCase(),
+    presidentPhone: payload.presidentPhone.trim(),
+    createdAt: new Date().toISOString(),
+    status: 'active',
+  };
+
+  // 2. Generate towers based on towersCount
+  const count = Math.max(1, Math.min(10, Number(payload.towersCount) || 2));
+  const towerNames = ['A (Amber)', 'B (Beryl)', 'C (Coral)', 'D (Diamond)', 'E (Emerald)', 'F (Flax)', 'G (Garnet)'];
+  const generatedTowers: SocietyTowerConfig[] = [];
+  const flatsPerTower = Math.ceil((Number(payload.totalUnitsCount) || 120) / count);
+  const floors = Math.ceil(flatsPerTower / 4);
+
+  for (let i = 0; i < count; i++) {
+    const letter = String.fromCharCode(65 + i);
+    generatedTowers.push({
+      id: `tow-${letter.toLowerCase()}`,
+      name: `Tower ${towerNames[i] || letter}`,
+      floorsCount: floors,
+      flatsPerFloor: 4,
+      unitPrefix: `${letter}-`,
+      active: true,
+    });
+  }
+
+  // 3. Create Society Config
+  const newConfig: SocietyConfig = {
+    ...DEFAULT_SOCIETY_CONFIG,
+    id: societyId,
+    societyName: payload.societyName.trim(),
+    societyCode: cleanCode,
+    registrationNumber: newSocietyItem.registrationNumber || '',
+    tagline: payload.tagline?.trim() || 'A Modern, Secure Residential Community',
+    addressLine1: payload.addressLine1.trim(),
+    city: payload.city.trim(),
+    state: payload.state.trim(),
+    pincode: payload.pincode.trim(),
+    contactEmail: payload.presidentEmail.trim().toLowerCase(),
+    contactPhone: payload.presidentPhone.trim(),
+    towers: generatedTowers,
+    totalUnitsCount: Number(payload.totalUnitsCount) || 120,
+    maintenance: {
+      ...DEFAULT_SOCIETY_CONFIG.maintenance,
+      baseMonthlyRate: Number(payload.baseMonthlyRate) || 3000,
+    },
+    customizedAt: new Date().toISOString(),
+  };
+
+  // 4. Create President user account
+  const presidentUser = {
+    id: `user-pres-${societyId}`,
+    name: payload.presidentName.trim(),
+    email: payload.presidentEmail.trim().toLowerCase(),
+    phone: payload.presidentPhone.trim(),
+    societyId,
+    societyName: payload.societyName.trim(),
+    societyCode: cleanCode,
+    block: generatedTowers[0]?.name.split(' ')[1] || 'Tower A',
+    flatNumber: payload.presidentFlatNumber.trim() || 'A-101',
+    roleId: 'role-president',
+    roleTitle: `President (${payload.societyName.trim()})`,
+    isCommitteeMember: true,
+    isAppOwner: false,
+    permissions: [
+      'maintenance:view',
+      'maintenance:manage',
+      'water:view',
+      'water:record_meter',
+      'water:manage_slabs',
+      'expenses:view',
+      'expenses:manage',
+      'reimbursement:approve',
+      'hall:view_calendar',
+      'hall:book',
+      'hall:approve',
+      'complaint:view_all',
+      'complaint:assign',
+      'complaint:resolve',
+      'notification:view',
+      'notification:broadcast',
+      'members:view',
+      'members:manage',
+      'roles:view',
+      'roles:manage',
+      'settings:manage',
+      'audit:view',
+      'reports:view',
+      'reports:export',
+    ],
+  };
+
+  // 5. Persist into storage
+  const currentSocieties = getAllSocieties();
+  const updatedSocieties = [newSocietyItem, ...currentSocieties.filter(s => s.id !== societyId)];
+  saveAllSocieties(updatedSocieties);
+
+  if (typeof window !== 'undefined') {
+    try {
+      // Save specific config
+      localStorage.setItem(`apnisociety_custom_config_${societyId}`, JSON.stringify(newConfig));
+      // Save president into dynamic users list
+      const customRaw = localStorage.getItem('apnisociety_custom_users');
+      let customUsers = customRaw ? JSON.parse(customRaw) : [];
+      customUsers = [presidentUser, ...customUsers.filter((u: any) => u.id !== presidentUser.id)];
+      localStorage.setItem('apnisociety_custom_users', JSON.stringify(customUsers));
+    } catch {}
+  }
+
+  return {
+    society: newSocietyItem,
+    config: newConfig,
+    presidentUser,
+  };
+}
+
+/**
+ * Switches the active society context for the App Owner or general viewer.
+ */
+export function switchActiveSociety(societyId: string): SocietyConfig {
+  const societies = getAllSocieties();
+  const target = societies.find(s => s.id === societyId);
+  if (!target) return getSocietyConfig();
+
+  let targetConfig: SocietyConfig = DEFAULT_SOCIETY_CONFIG;
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(ACTIVE_SOCIETY_ID_KEY, societyId);
+      const specific = localStorage.getItem(`apnisociety_custom_config_${societyId}`);
+      if (specific) {
+        targetConfig = JSON.parse(specific);
+      } else {
+        targetConfig = {
+          ...DEFAULT_SOCIETY_CONFIG,
+          id: target.id,
+          societyName: target.name,
+          societyCode: target.code,
+          city: target.city,
+          state: target.state,
+          registrationNumber: target.registrationNumber || '',
+          totalUnitsCount: target.totalUnits,
+        };
+      }
+      saveSocietyConfig(targetConfig);
+    } catch {}
+  }
+
+  return targetConfig;
 }

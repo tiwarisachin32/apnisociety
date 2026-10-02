@@ -18,6 +18,7 @@ export interface User {
   roleId: string;
   roleTitle: string; // e.g. "Owner", "Tenant", "President", "Treasurer", "Vice President"
   isCommitteeMember: boolean;
+  isAppOwner?: boolean; // Platform Super Admin / App Owner
   permissions: PermissionType[];
 }
 

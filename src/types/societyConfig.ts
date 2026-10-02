@@ -110,6 +110,39 @@ export interface SocietyConfig {
   customizedAt: string;
 }
 
+export interface SocietyItem {
+  id: string;
+  name: string;
+  code: string;
+  registrationNumber?: string;
+  city: string;
+  state: string;
+  totalUnits: number;
+  presidentName: string;
+  presidentEmail: string;
+  presidentPhone: string;
+  createdAt: string;
+  status: 'active' | 'pending_setup' | 'archived';
+}
+
+export interface CreateSocietyPayload {
+  societyName: string;
+  societyCode: string;
+  registrationNumber?: string;
+  tagline?: string;
+  addressLine1: string;
+  city: string;
+  state: string;
+  pincode: string;
+  totalUnitsCount: number;
+  towersCount: number;
+  baseMonthlyRate: number;
+  presidentName: string;
+  presidentEmail: string;
+  presidentPhone: string;
+  presidentFlatNumber: string;
+}
+
 export type SocietyPresetType =
   | 'high_rise_complex'
   | 'gated_villas'

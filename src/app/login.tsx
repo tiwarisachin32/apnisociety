@@ -313,27 +313,36 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
           </Text>
 
           <View style={styles.demoGrid}>
-            {MOCK_USERS.map((demo) => (
-              <Pressable
-                key={demo.id}
-                onPress={() => handleSelectDemoPersona(demo)}
-                style={styles.demoCard}
-              >
-                <View style={styles.demoCardTop}>
-                  <Text style={styles.demoName}>{demo.name}</Text>
-                  <StatusBadge
-                    status={demo.isCommitteeMember ? 'info' : 'neutral'}
-                    label={demo.roleTitle.split(' ')[0]}
-                    size="sm"
-                    showDot={false}
-                  />
-                </View>
-                <Text style={styles.demoSub}>
-                  {demo.block} • {demo.flatNumber}
-                </Text>
-                <Text style={styles.demoEmail}>{demo.email}</Text>
-              </Pressable>
-            ))}
+            {MOCK_USERS.map((demo) => {
+              const isOwner = Boolean(demo.isAppOwner);
+              const isPres = demo.roleId === 'role-president';
+              return (
+                <Pressable
+                  key={demo.id}
+                  onPress={() => handleSelectDemoPersona(demo)}
+                  style={[
+                    styles.demoCard,
+                    isOwner && { borderColor: '#F59E0B', borderWidth: 1.5, backgroundColor: '#FFFDF5' },
+                  ]}
+                >
+                  <View style={styles.demoCardTop}>
+                    <Text style={[styles.demoName, isOwner && { color: '#B45309', fontWeight: 'bold' }]}>
+                      {isOwner ? '👑 ' : ''}{demo.name}
+                    </Text>
+                    <StatusBadge
+                      status={isOwner ? 'warning' : isPres ? 'info' : demo.isCommitteeMember ? 'success' : 'neutral'}
+                      label={isOwner ? 'APP OWNER' : isPres ? 'PRESIDENT' : demo.roleTitle.split(' ')[0]}
+                      size="sm"
+                      showDot={false}
+                    />
+                  </View>
+                  <Text style={styles.demoSub}>
+                    {demo.societyName} • {demo.block} • {demo.flatNumber}
+                  </Text>
+                  <Text style={styles.demoEmail}>{demo.email}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
       </Card>
