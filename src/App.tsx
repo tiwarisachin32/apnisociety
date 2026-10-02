@@ -24,6 +24,7 @@ import ReportsScreen from './app/reports';
 import RolesPermissionsScreen from './app/rolesPermissions';
 import SocietySettingsScreen from './app/societySettings';
 import WaterScreen from './app/water';
+import { AndroidInstallBanner } from './components/common/AndroidInstallBanner';
 import { Button, Card } from './components/ui';
 import { APP_NAME, PERMISSIONS, PermissionType } from './constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from './constants/theme';
@@ -284,6 +285,9 @@ function AppContent() {
 
   return (
     <View style={styles.appContainer}>
+      {/* Android Native WebAPK & PWA Install Banner */}
+      <AndroidInstallBanner onOpenAndroidHub={() => handleNav('settings')} />
+
       {/* Header Bar */}
       <View style={styles.topHeader}>
         <View style={styles.brandRow}>

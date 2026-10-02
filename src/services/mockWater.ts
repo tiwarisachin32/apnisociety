@@ -6,6 +6,7 @@ import {
   WaterSocietySummary,
   WaterTariffConfig,
 } from '../types/water';
+import { isRealDataMode } from './dataManager';
 
 const STORAGE_KEY_TARIFF = 'apnisociety_water_tariff';
 const STORAGE_KEY_WATER_READINGS = 'apnisociety_water_readings';
@@ -417,10 +418,11 @@ function getStoredReadings(): WaterMeterReading[] {
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_WATER_READINGS);
-      if (stored) return JSON.parse(stored);
+      if (stored !== null) return JSON.parse(stored);
+      if (isRealDataMode()) return [];
     } catch {}
   }
-  return inMemoryReadings;
+  return isRealDataMode() ? [] : inMemoryReadings;
 }
 
 function saveReadings(readings: WaterMeterReading[]): void {

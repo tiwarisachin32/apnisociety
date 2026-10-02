@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -22,6 +22,7 @@ import {
   markBillOfflinePaid,
   payMaintenanceBill,
 } from '../services/mockMaintenance';
+import { isRealDataMode, subscribeToDataReset } from '../services/dataManager';
 import {
   MaintenanceBill,
   MaintenancePaymentReceipt,
@@ -45,6 +46,14 @@ export default function MaintenanceScreen() {
   // Data State
   const [bills, setBills] = useState<MaintenanceBill[]>(() => getMaintenanceBills());
   const [summary, setSummary] = useState(() => getMaintenanceSummary());
+
+  useEffect(() => {
+    const unsub = subscribeToDataReset(() => {
+      setBills(getMaintenanceBills());
+      setSummary(getMaintenanceSummary());
+    });
+    return unsub;
+  }, []);
 
   // Search & Filters for Society Ledger
   const [searchQuery, setSearchQuery] = useState('');

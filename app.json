@@ -14,10 +14,30 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.apnisociety.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#2563EB"
       },
-      "package": "com.apnisociety.app"
+      "permissions": [
+        "INTERNET",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "apnisociety"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro"

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -14,6 +14,7 @@ import { APP_NAME, PERMISSIONS } from '../constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
+import { subscribeToDataReset } from '../services/dataManager';
 import {
   assignStaffToTicket,
   closeTicket,
@@ -80,6 +81,14 @@ export default function ComplaintsScreen({
   const [tickets, setTickets] = useState<ComplaintTicket[]>(() => getAllComplaints());
   const [metrics, setMetrics] = useState(() => getComplaintMetrics(user?.id));
   const staffMembers = getAvailableStaff();
+
+  useEffect(() => {
+    const unsub = subscribeToDataReset(() => {
+      setTickets(getAllComplaints());
+      setMetrics(getComplaintMetrics(user?.id));
+    });
+    return unsub;
+  }, [user?.id]);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<'all' | ComplaintStatus>('all');

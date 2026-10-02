@@ -11,6 +11,7 @@ import {
   ResolveTicketPayload,
   SocietyStaff,
 } from '../types/complaints';
+import { isRealDataMode } from './dataManager';
 
 const STORAGE_KEY_COMPLAINTS = 'apnisociety_complaints_v1';
 
@@ -344,10 +345,11 @@ function getStoredComplaints(): ComplaintTicket[] {
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_COMPLAINTS);
-      if (stored) return JSON.parse(stored);
+      if (stored !== null) return JSON.parse(stored);
+      if (isRealDataMode()) return [];
     } catch {}
   }
-  return inMemoryComplaints;
+  return isRealDataMode() ? [] : inMemoryComplaints;
 }
 
 function saveComplaints(complaints: ComplaintTicket[]): void {

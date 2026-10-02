@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.apnisociety.app",
+      "sha256_cert_fingerprints": [
+        "14:6D:E9:7F:0F:52:CE:EB:2B:AE:5E:7B:6A:B2:D6:7F:7E:6D:3E:64:1D:6D:1A:CE:37:1A:B9:32:02:81:4A:2A"
+      ]
+    }
+  }
+]

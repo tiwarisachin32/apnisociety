@@ -28,6 +28,7 @@ import {
   updateMember,
   verifyMember,
 } from '../services/mockMembers';
+import { subscribeToDataReset } from '../services/dataManager';
 import {
   CommitteeRole,
   MemberSummaryMetrics,
@@ -80,10 +81,17 @@ export default function MembersScreen({
   const [metrics, setMetrics] = useState<MemberSummaryMetrics>(() => getMemberSummaryMetrics());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Sync state when user changes
+  // Sync state when user changes or when data is reset
   useEffect(() => {
     reloadAllData();
   }, [user?.id]);
+
+  useEffect(() => {
+    const unsub = subscribeToDataReset(() => {
+      reloadAllData();
+    });
+    return unsub;
+  }, []);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -14,6 +14,7 @@ import { APP_NAME, PERMISSIONS } from '../constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
+import { subscribeToDataReset } from '../services/dataManager';
 import {
   calculateWaterBill,
   getHistoricalConsumption,
@@ -51,6 +52,15 @@ export default function WaterScreen() {
   const [readings, setReadings] = useState<WaterMeterReading[]>(() => getWaterReadings());
   const [tariff, setTariff] = useState<WaterTariffConfig>(() => getWaterTariffConfig());
   const [summary, setSummary] = useState<WaterSocietySummary>(() => getWaterSocietySummary());
+
+  useEffect(() => {
+    const unsub = subscribeToDataReset(() => {
+      setReadings(getWaterReadings());
+      setTariff(getWaterTariffConfig());
+      setSummary(getWaterSocietySummary());
+    });
+    return unsub;
+  }, []);
 
   // Search & Filter state for Meter Reader Table
   const [searchQuery, setSearchQuery] = useState('');

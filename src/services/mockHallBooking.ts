@@ -6,6 +6,7 @@ import {
   NewBookingPayload,
   SocietyFacility,
 } from '../types/hallBooking';
+import { isRealDataMode } from './dataManager';
 
 const STORAGE_KEY_BOOKINGS = 'apnisociety_hall_bookings_v1';
 
@@ -275,10 +276,11 @@ function getStoredBookings(): HallBooking[] {
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_BOOKINGS);
-      if (stored) return JSON.parse(stored);
+      if (stored !== null) return JSON.parse(stored);
+      if (isRealDataMode()) return [];
     } catch {}
   }
-  return inMemoryBookings;
+  return isRealDataMode() ? [] : inMemoryBookings;
 }
 
 function saveBookings(bookings: HallBooking[]): void {

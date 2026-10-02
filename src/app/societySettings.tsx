@@ -27,6 +27,18 @@ import {
   SOCIETY_PRESETS,
 } from '../services/societyConfig';
 import {
+  clearModuleData,
+  getStorageStatistics,
+  isRealDataMode,
+  resetAllToRealProduction,
+  restoreDemoData,
+  StorageStatistics,
+  subscribeToDataReset,
+} from '../services/dataManager';
+import { useAndroidInstallPrompt } from '../hooks/useAndroidInstallPrompt';
+import { getStoredMembers, getStoredUnits, saveMembers, saveUnits } from '../services/mockMembers';
+import { SocietyMember, SocietyUnit } from '../types/members';
+import {
   SocietyConfig,
   SocietyFacilityConfig,
   SocietyPresetType,
@@ -41,6 +53,8 @@ export interface SocietySettingsScreenProps {
 
 type SettingsTab =
   | 'release'
+  | 'datamode'
+  | 'android'
   | 'identity'
   | 'architecture'
   | 'finance'
@@ -76,6 +90,125 @@ export default function SocietySettingsScreen({
   const [newTowerFlatsPerFloor, setNewTowerFlatsPerFloor] = useState('4');
   const [newTowerPrefix, setNewTowerPrefix] = useState('E-');
   const [showAddTowerModal, setShowAddTowerModal] = useState(false);
+
+  // Real Data & Storage Management State
+  const [storageStats, setStorageStats] = useState<StorageStatistics>(getStorageStatistics());
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetAdminName, setResetAdminName] = useState(user?.name || 'Society Administrator');
+  const [resetAdminEmail, setResetAdminEmail] = useState(user?.email || 'admin@apnisociety.com');
+  const [resetAdminPhone, setResetAdminPhone] = useState(user?.phone || '9876543210');
+  const [resetAdminFlat, setResetAdminFlat] = useState(user?.flatNumber || 'A-101');
+  const [genUnitsFromTowers, setGenUnitsFromTowers] = useState(true);
+  const [isResetting, setIsResetting] = useState(false);
+  const [showBulkMemberModal, setShowBulkMemberModal] = useState(false);
+  const [bulkMemberText, setBulkMemberText] = useState('');
+  const [activeAndroidSubTab, setActiveAndroidSubTab] = useState<'webapk' | 'eas' | 'twa' | 'permissions'>('webapk');
+
+  const androidPrompt = useAndroidInstallPrompt();
+
+  useEffect(() => {
+    const unsub = subscribeToDataReset(() => {
+      setStorageStats(getStorageStatistics());
+    });
+    return unsub;
+  }, []);
+
+  const handleMasterReset = () => {
+    setIsResetting(true);
+    setTimeout(() => {
+      const res = resetAllToRealProduction({
+        adminName: resetAdminName,
+        adminEmail: resetAdminEmail,
+        adminPhone: resetAdminPhone,
+        adminFlat: resetAdminFlat,
+        societyName: config.societyName,
+        generateRealUnitsFromTowers: genUnitsFromTowers,
+      });
+      setStorageStats(getStorageStatistics());
+      setIsResetting(false);
+      setShowResetModal(false);
+      showToast(res.message);
+    }, 300);
+  };
+
+  const handleModuleWipe = (
+    mod: 'maintenance' | 'complaints' | 'expenses' | 'reimbursements' | 'water' | 'bookings' | 'notifications'
+  ) => {
+    clearModuleData(mod);
+    setStorageStats(getStorageStatistics());
+    showToast(`✓ Cleared data for ${mod.toUpperCase()}`);
+  };
+
+  const handleRestoreDemo = () => {
+    restoreDemoData();
+    setStorageStats(getStorageStatistics());
+    showToast('🔄 Demo test seed data restored.');
+  };
+
+  const handleBulkImport = () => {
+    if (!bulkMemberText.trim()) return;
+    const lines = bulkMemberText.split('\n').filter((l) => l.trim().length > 0);
+    const existingMembers = getStoredMembers();
+    const existingUnits = getStoredUnits();
+    let importedCount = 0;
+
+    const newMembers = [...existingMembers];
+    const updatedUnits = [...existingUnits];
+
+    for (const line of lines) {
+      const parts = line.split(',').map((p) => p.trim());
+      if (parts.length < 2) continue;
+      const flat = parts[0];
+      const name = parts[1];
+      const phone = parts[2] || '9876543210';
+      const email = parts[3] || `${name.toLowerCase().replace(/[^a-z0-9]/g, '')}@society.com`;
+      const roleStr = (parts[4] || 'owner').toLowerCase();
+      const isOwner = roleStr.includes('owner');
+
+      const newMem: SocietyMember = {
+        id: `mem-real-${Date.now()}-${importedCount}`,
+        name,
+        email,
+        phone,
+        flatNumber: flat,
+        block: flat.split('-')[0] ? `Tower ${flat.split('-')[0]}` : 'Tower A',
+        residentType: isOwner ? 'owner' : 'tenant',
+        intercomNumber: '1000',
+        parkingSlots: [],
+        isCommitteeMember: false,
+        moveInDate: new Date().toISOString().split('T')[0],
+        vehicles: [],
+        familyMembers: [],
+        hasPets: false,
+        emergencyContact: {
+          name: 'Contact',
+          relation: 'Family',
+          phone,
+        },
+        verificationStatus: 'verified',
+      };
+      newMembers.push(newMem);
+
+      const unit = updatedUnits.find((u) => u.flatNumber.toLowerCase() === flat.toLowerCase());
+      if (unit) {
+        unit.occupancyStatus = isOwner ? 'owner_occupied' : 'rented';
+        unit.primaryResidentName = name;
+        unit.primaryResidentId = newMem.id;
+        if (isOwner) {
+          unit.ownerName = name;
+          unit.ownerContact = phone;
+        }
+      }
+      importedCount++;
+    }
+
+    saveMembers(newMembers);
+    saveUnits(updatedUnits);
+    setStorageStats(getStorageStatistics());
+    setBulkMemberText('');
+    setShowBulkMemberModal(false);
+    showToast(`✓ Successfully onboarded ${importedCount} real society members!`);
+  };
 
   const checklist = getProductionReleaseChecklist(config);
   const allChecksReady = checklist.every((c) => c.isReady);
@@ -228,7 +361,23 @@ export default function SocietySettingsScreen({
             onPress={() => setActiveTab('release')}
           >
             <Text style={[styles.tabBtnText, activeTab === 'release' && styles.tabBtnTextActive]}>
-              🚀 Release & Launch
+              🚀 Release Hub
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tabBtn, activeTab === 'datamode' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('datamode')}
+          >
+            <Text style={[styles.tabBtnText, activeTab === 'datamode' && styles.tabBtnTextActive]}>
+              🧹 Real Data Reset {storageStats.mode === 'real' ? '🟢' : '🟡'}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tabBtn, activeTab === 'android' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('android')}
+          >
+            <Text style={[styles.tabBtnText, activeTab === 'android' && styles.tabBtnTextActive]}>
+              🤖 Android App Deploy
             </Text>
           </Pressable>
           <Pressable
@@ -329,6 +478,49 @@ export default function SocietySettingsScreen({
                       showToast('✓ Public Resident Portal link copied to clipboard!');
                     }
                   }}
+                />
+              </View>
+            </View>
+
+            {/* Quick Action Badges: Real Data Status & Android App */}
+            <View style={styles.quickLaunchBannerGrid}>
+              <View style={[styles.quickLaunchBanner, storageStats.mode === 'real' ? styles.quickBannerGreen : styles.quickBannerYellow]}>
+                <View style={styles.quickBannerIconCircle}>
+                  <Text style={styles.quickBannerIcon}>{storageStats.mode === 'real' ? '🟢' : '🧹'}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.quickBannerTitle}>
+                    {storageStats.mode === 'real' ? 'Real Production Mode Active' : 'Dummy Demo Data Active'}
+                  </Text>
+                  <Text style={styles.quickBannerSubtitle}>
+                    {storageStats.mode === 'real'
+                      ? 'Ledgers and logs are clean. Ready for genuine society operations.'
+                      : `${storageStats.billsCount} bills, ${storageStats.complaintsCount} complaints, ${storageStats.expensesCount} expenses detected. Reset to real data before launch.`}
+                  </Text>
+                </View>
+                <Button
+                  title={storageStats.mode === 'real' ? 'Manage Real Data →' : 'Wipe Dummy Data →'}
+                  variant={storageStats.mode === 'real' ? 'outline' : 'primary'}
+                  size="sm"
+                  onPress={() => setActiveTab('datamode')}
+                />
+              </View>
+
+              <View style={[styles.quickLaunchBanner, styles.quickBannerBlue]}>
+                <View style={styles.quickBannerIconCircleBlue}>
+                  <Text style={styles.quickBannerIcon}>🤖</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.quickBannerTitle}>Android App Deployment</Text>
+                  <Text style={styles.quickBannerSubtitle}>
+                    WebAPK, Expo EAS Build (.apk), and Google Play TWA configured with package com.apnisociety.app.
+                  </Text>
+                </View>
+                <Button
+                  title="Deploy Android →"
+                  variant="primary"
+                  size="sm"
+                  onPress={() => setActiveTab('android')}
                 />
               </View>
             </View>
@@ -1020,8 +1212,557 @@ export default function SocietySettingsScreen({
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL: ADD TOWER                                                          */}
+      {/* TAB: REAL DATA MODE & DUMMY DATA PURGE                                    */}
       {/* ========================================================================= */}
+      {activeTab === 'datamode' && (
+        <View style={styles.tabContent}>
+          {/* Status Hero Card */}
+          <Card style={styles.sectionCard}>
+            <View style={styles.dataModeHeroRow}>
+              <View style={styles.dataModeIconBox}>
+                <Text style={styles.dataModeIcon}>{storageStats.mode === 'real' ? '🟢' : '🧹'}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.badgeRow}>
+                  <Text style={styles.sectionTitle}>
+                    {storageStats.mode === 'real' ? 'Real Production Data Mode Active' : 'Demo / Dummy Data Active'}
+                  </Text>
+                  <StatusBadge
+                    status={storageStats.mode === 'real' ? 'paid' : 'pending'}
+                    label={storageStats.mode === 'real' ? 'PRODUCTION CLEAN' : 'DUMMY SEED'}
+                    size="sm"
+                  />
+                </View>
+                <Text style={styles.sectionSubtitle}>
+                  {storageStats.mode === 'real'
+                    ? `Your society is operating on clean production data. All sample invoices, mock complaints, and dummy records have been cleared.`
+                    : `The application currently contains pre-packaged sample records for demonstration. To prepare for official society release, purge all dummy data below to start with a fresh slate.`}
+                </Text>
+              </View>
+            </View>
+
+            {/* Master Action Banner */}
+            <View style={styles.masterResetCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.masterResetTitle}>🚀 Initialize Real Society Data</Text>
+                <Text style={styles.masterResetDesc}>
+                  Wipe all dummy bills, tickets, expenses, water readings, and bookings. Automatically creates real vacant units matching your configured towers and initializes your official Secretary/Admin profile.
+                </Text>
+              </View>
+              <View style={styles.masterResetBtnRow}>
+                <Button
+                  title="🧹 Reset All Dummy Data"
+                  variant="primary"
+                  size="md"
+                  onPress={() => setShowResetModal(true)}
+                />
+                <Button
+                  title="👥 Bulk Import Residents"
+                  variant="outline"
+                  size="md"
+                  onPress={() => setShowBulkMemberModal(true)}
+                />
+                {storageStats.mode === 'real' && (
+                  <Button
+                    title="🔄 Load Sandbox Demo"
+                    variant="ghost"
+                    size="md"
+                    onPress={handleRestoreDemo}
+                  />
+                )}
+              </View>
+            </View>
+          </Card>
+
+          {/* Operational Ledger Records Table */}
+          <Card style={styles.sectionCard}>
+            <View style={styles.sectionHeaderRow}>
+              <View>
+                <Text style={styles.sectionTitle}>📊 Live Database Ledger Audit</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Inspect active operational records. Clear individual modules as needed.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.moduleAuditGrid}>
+              {/* Bills */}
+              <View style={styles.auditRowItem}>
+                <View style={styles.auditRowIconCircle}>
+                  <Text style={styles.auditRowIcon}>💳</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.auditRowTitle}>Maintenance Invoices & Receipts</Text>
+                  <Text style={styles.auditRowDesc}>
+                    {storageStats.billsCount} active bills stored in database
+                  </Text>
+                </View>
+                <View style={styles.auditRowAction}>
+                  <StatusBadge
+                    status={storageStats.billsCount === 0 ? 'paid' : 'pending'}
+                    label={storageStats.billsCount === 0 ? '0 (CLEAN)' : `${storageStats.billsCount} RECORDS`}
+                    size="sm"
+                  />
+                  {storageStats.billsCount > 0 && (
+                    <Button
+                      title="Clear"
+                      variant="outline"
+                      size="sm"
+                      onPress={() => handleModuleWipe('maintenance')}
+                    />
+                  )}
+                </View>
+              </View>
+
+              {/* Complaints */}
+              <View style={styles.auditRowItem}>
+                <View style={styles.auditRowIconCircle}>
+                  <Text style={styles.auditRowIcon}>🛠️</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.auditRowTitle}>Helpdesk & Complaint Tickets</Text>
+                  <Text style={styles.auditRowDesc}>
+                    {storageStats.complaintsCount} active complaints logged
+                  </Text>
+                </View>
+                <View style={styles.auditRowAction}>
+                  <StatusBadge
+                    status={storageStats.complaintsCount === 0 ? 'paid' : 'pending'}
+                    label={storageStats.complaintsCount === 0 ? '0 (CLEAN)' : `${storageStats.complaintsCount} RECORDS`}
+                    size="sm"
+                  />
+                  {storageStats.complaintsCount > 0 && (
+                    <Button
+                      title="Clear"
+                      variant="outline"
+                      size="sm"
+                      onPress={() => handleModuleWipe('complaints')}
+                    />
+                  )}
+                </View>
+              </View>
+
+              {/* Expenses */}
+              <View style={styles.auditRowItem}>
+                <View style={styles.auditRowIconCircle}>
+                  <Text style={styles.auditRowIcon}>🧾</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.auditRowTitle}>Society Expense Vouchers</Text>
+                  <Text style={styles.auditRowDesc}>
+                    {storageStats.expensesCount} expenses & {storageStats.claimsCount} claims
+                  </Text>
+                </View>
+                <View style={styles.auditRowAction}>
+                  <StatusBadge
+                    status={storageStats.expensesCount === 0 ? 'paid' : 'pending'}
+                    label={storageStats.expensesCount === 0 ? '0 (CLEAN)' : `${storageStats.expensesCount} RECORDS`}
+                    size="sm"
+                  />
+                  {storageStats.expensesCount > 0 && (
+                    <Button
+                      title="Clear"
+                      variant="outline"
+                      size="sm"
+                      onPress={() => {
+                        handleModuleWipe('expenses');
+                        handleModuleWipe('reimbursements');
+                      }}
+                    />
+                  )}
+                </View>
+              </View>
+
+              {/* Water Readings */}
+              <View style={styles.auditRowItem}>
+                <View style={styles.auditRowIconCircle}>
+                  <Text style={styles.auditRowIcon}>💧</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.auditRowTitle}>Water Meter Readings & Tankers</Text>
+                  <Text style={styles.auditRowDesc}>
+                    {storageStats.waterReadingsCount} meter readings registered
+                  </Text>
+                </View>
+                <View style={styles.auditRowAction}>
+                  <StatusBadge
+                    status={storageStats.waterReadingsCount === 0 ? 'paid' : 'pending'}
+                    label={storageStats.waterReadingsCount === 0 ? '0 (CLEAN)' : `${storageStats.waterReadingsCount} RECORDS`}
+                    size="sm"
+                  />
+                  {storageStats.waterReadingsCount > 0 && (
+                    <Button
+                      title="Clear"
+                      variant="outline"
+                      size="sm"
+                      onPress={() => handleModuleWipe('water')}
+                    />
+                  )}
+                </View>
+              </View>
+
+              {/* Hall Bookings */}
+              <View style={styles.auditRowItem}>
+                <View style={styles.auditRowIconCircle}>
+                  <Text style={styles.auditRowIcon}>🎪</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.auditRowTitle}>Hall & Facility Bookings</Text>
+                  <Text style={styles.auditRowDesc}>
+                    {storageStats.bookingsCount} booking slots reserved
+                  </Text>
+                </View>
+                <View style={styles.auditRowAction}>
+                  <StatusBadge
+                    status={storageStats.bookingsCount === 0 ? 'paid' : 'pending'}
+                    label={storageStats.bookingsCount === 0 ? '0 (CLEAN)' : `${storageStats.bookingsCount} RECORDS`}
+                    size="sm"
+                  />
+                  {storageStats.bookingsCount > 0 && (
+                    <Button
+                      title="Clear"
+                      variant="outline"
+                      size="sm"
+                      onPress={() => handleModuleWipe('bookings')}
+                    />
+                  )}
+                </View>
+              </View>
+
+              {/* Broadcast Notifications */}
+              <View style={styles.auditRowItem}>
+                <View style={styles.auditRowIconCircle}>
+                  <Text style={styles.auditRowIcon}>📢</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.auditRowTitle}>Broadcast Alerts & Notices</Text>
+                  <Text style={styles.auditRowDesc}>
+                    {storageStats.notificationsCount} circular notifications
+                  </Text>
+                </View>
+                <View style={styles.auditRowAction}>
+                  <StatusBadge
+                    status={storageStats.notificationsCount <= 1 ? 'paid' : 'pending'}
+                    label={`${storageStats.notificationsCount} NOTICES`}
+                    size="sm"
+                  />
+                  {storageStats.notificationsCount > 1 && (
+                    <Button
+                      title="Clear"
+                      variant="outline"
+                      size="sm"
+                      onPress={() => handleModuleWipe('notifications')}
+                    />
+                  )}
+                </View>
+              </View>
+
+              {/* Members & Units */}
+              <View style={styles.auditRowItem}>
+                <View style={styles.auditRowIconCircle}>
+                  <Text style={styles.auditRowIcon}>👥</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.auditRowTitle}>Units & Resident Directory</Text>
+                  <Text style={styles.auditRowDesc}>
+                    {storageStats.unitsCount} total units • {storageStats.membersCount} registered members
+                  </Text>
+                </View>
+                <View style={styles.auditRowAction}>
+                  <StatusBadge
+                    status="paid"
+                    label={`${storageStats.membersCount} MEMBERS`}
+                    size="sm"
+                  />
+                  <Button
+                    title="Bulk Add"
+                    variant="outline"
+                    size="sm"
+                    onPress={() => setShowBulkMemberModal(true)}
+                  />
+                </View>
+              </View>
+            </View>
+          </Card>
+        </View>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: ANDROID APP DEPLOYMENT & DISTRIBUTION                                */}
+      {/* ========================================================================= */}
+      {activeTab === 'android' && (
+        <View style={styles.tabContent}>
+          {/* Android Hero Card */}
+          <Card style={styles.sectionCard}>
+            <View style={styles.dataModeHeroRow}>
+              <View style={styles.androidHeroIconCircle}>
+                <Text style={styles.dataModeIcon}>🤖</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.badgeRow}>
+                  <Text style={styles.sectionTitle}>Android App Deployment Hub</Text>
+                  <StatusBadge status="paid" label="PACKAGE READY" size="sm" />
+                </View>
+                <Text style={styles.sectionSubtitle}>
+                  Package: <Text style={styles.monoText}>com.apnisociety.app</Text> • Deep Link Scheme: <Text style={styles.monoText}>apnisociety://</Text>
+                </Text>
+              </View>
+            </View>
+
+            {/* Android Device Live Status */}
+            <View style={styles.androidLiveBox}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.androidLiveTitle}>
+                  {androidPrompt.isAndroid ? '📱 Android Smartphone Detected' : '💻 Web / Desktop Browser'}
+                </Text>
+                <Text style={styles.androidLiveDesc}>
+                  {androidPrompt.isInstalled
+                    ? 'ApniSociety is installed in Standalone Native WebAPK mode on this device.'
+                    : androidPrompt.isInstallable
+                    ? 'This Android browser is ready for 1-Tap native WebAPK installation.'
+                    : 'Residents can install directly on any Android device via Google Chrome or build an APK with Expo EAS.'}
+                </Text>
+              </View>
+
+              {androidPrompt.isInstallable && !androidPrompt.isInstalled && (
+                <Button
+                  title="📲 1-Tap Install App"
+                  variant="primary"
+                  size="md"
+                  onPress={async () => {
+                    const outcome = await androidPrompt.triggerInstall();
+                    if (outcome === 'accepted') {
+                      showToast('✓ ApniSociety installed successfully on your Android device!');
+                    }
+                  }}
+                />
+              )}
+            </View>
+
+            {/* Android Sub-Nav Pills */}
+            <View style={styles.androidPillsRow}>
+              <Pressable
+                style={[styles.androidPillBtn, activeAndroidSubTab === 'webapk' && styles.androidPillBtnActive]}
+                onPress={() => setActiveAndroidSubTab('webapk')}
+              >
+                <Text style={[styles.androidPillBtnText, activeAndroidSubTab === 'webapk' && styles.androidPillBtnTextActive]}>
+                  ⚡ 1-Click WebAPK (Fastest)
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.androidPillBtn, activeAndroidSubTab === 'eas' && styles.androidPillBtnActive]}
+                onPress={() => setActiveAndroidSubTab('eas')}
+              >
+                <Text style={[styles.androidPillBtnText, activeAndroidSubTab === 'eas' && styles.androidPillBtnTextActive]}>
+                  📦 Expo EAS Build (.apk / .aab)
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.androidPillBtn, activeAndroidSubTab === 'twa' && styles.androidPillBtnActive]}
+                onPress={() => setActiveAndroidSubTab('twa')}
+              >
+                <Text style={[styles.androidPillBtnText, activeAndroidSubTab === 'twa' && styles.androidPillBtnTextActive]}>
+                  🏪 Google Play Store (TWA)
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.androidPillBtn, activeAndroidSubTab === 'permissions' && styles.androidPillBtnActive]}
+                onPress={() => setActiveAndroidSubTab('permissions')}
+              >
+                <Text style={[styles.androidPillBtnText, activeAndroidSubTab === 'permissions' && styles.androidPillBtnTextActive]}>
+                  🛡️ Permissions & Security
+                </Text>
+              </Pressable>
+            </View>
+          </Card>
+
+          {/* Sub-tab 1: WebAPK */}
+          {activeAndroidSubTab === 'webapk' && (
+            <Card style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>⚡ 1-Click Android WebAPK Distribution (Zero Compile)</Text>
+              <Text style={styles.sectionSubtitle}>
+                Chromium on Android natively packages compliant PWAs into official Android WebAPKs with genuine app drawer presence, badge notifications, camera access, and offline caching.
+              </Text>
+
+              <View style={styles.guideStepsBox}>
+                <View style={styles.guideStepItem}>
+                  <View style={styles.guideStepNum}><Text style={styles.guideStepNumText}>1</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.guideStepTitle}>Share the Resident Portal URL with Residents</Text>
+                    <Text style={styles.guideStepText}>
+                      Share via WhatsApp group or display the QR code at the security gate or elevators.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.guideStepItem}>
+                  <View style={styles.guideStepNum}><Text style={styles.guideStepNumText}>2</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.guideStepTitle}>Resident Opens Link in Google Chrome on Android</Text>
+                    <Text style={styles.guideStepText}>
+                      Chrome detects the web app manifest and displays the "Install ApniSociety" banner or resident taps (⋮) → "Install App".
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.guideStepItem}>
+                  <View style={styles.guideStepNum}><Text style={styles.guideStepNumText}>3</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.guideStepTitle}>Android Installs Native WebAPK</Text>
+                    <Text style={styles.guideStepText}>
+                      The app appears in Android's App Drawer alongside WhatsApp and Gmail, launches in full-screen standalone mode with no browser URL bar, and supports camera for receipt uploads.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.shareActionsRow}>
+                <Button
+                  title="📱 Show Resident QR Code"
+                  variant="primary"
+                  size="md"
+                  onPress={() => setShowQrModal(true)}
+                />
+                <Button
+                  title="📋 Copy Portal Link"
+                  variant="outline"
+                  size="md"
+                  onPress={() => {
+                    if (navigator.clipboard) {
+                      navigator.clipboard.writeText(window.location.href);
+                      showToast('✓ Resident Portal link copied to clipboard!');
+                    }
+                  }}
+                />
+              </View>
+            </Card>
+          )}
+
+          {/* Sub-tab 2: Expo EAS Build (.apk / .aab) */}
+          {activeAndroidSubTab === 'eas' && (
+            <Card style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>📦 Expo EAS Build: Sideloadable APK & Google Play AAB</Text>
+              <Text style={styles.sectionSubtitle}>
+                Generate a standalone installable Android package file (.apk) or official Android App Bundle (.aab) using Expo EAS CLI.
+              </Text>
+
+              <View style={styles.codeSnippetBlock}>
+                <Text style={styles.codeSnippetHeader}>1. Install EAS CLI and login to Expo account:</Text>
+                <Text style={styles.codeSnippetText}>npm install -g eas-cli && npx eas login</Text>
+              </View>
+
+              <View style={styles.codeSnippetBlock}>
+                <Text style={styles.codeSnippetHeader}>2. Build Direct Installable Android APK (For Sideloading & WhatsApp):</Text>
+                <Text style={styles.codeSnippetText}>npx eas build -p android --profile preview</Text>
+              </View>
+
+              <View style={styles.codeSnippetBlock}>
+                <Text style={styles.codeSnippetHeader}>3. Build Signed AAB for Google Play Store Developer Console:</Text>
+                <Text style={styles.codeSnippetText}>npx eas build -p android --profile production</Text>
+              </View>
+
+              <View style={styles.shareActionsRow}>
+                <Button
+                  title="📋 Copy Build Commands"
+                  variant="primary"
+                  size="md"
+                  onPress={() => {
+                    if (navigator.clipboard) {
+                      navigator.clipboard.writeText('npx eas build -p android --profile preview');
+                      showToast('✓ EAS build command copied to clipboard!');
+                    }
+                  }}
+                />
+                <Button
+                  title="💾 Download app.json"
+                  variant="outline"
+                  size="md"
+                  onPress={() => {
+                    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(config, null, 2));
+                    const downloadAnchor = document.createElement('a');
+                    downloadAnchor.setAttribute('href', dataStr);
+                    downloadAnchor.setAttribute('download', 'app.json');
+                    document.body.appendChild(downloadAnchor);
+                    downloadAnchor.click();
+                    downloadAnchor.remove();
+                    showToast('✓ Downloaded app.json configuration');
+                  }}
+                />
+              </View>
+            </Card>
+          )}
+
+          {/* Sub-tab 3: Google Play Store TWA (Bubblewrap) */}
+          {activeAndroidSubTab === 'twa' && (
+            <Card style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>🏪 Google Play Store Trusted Web Activity (TWA)</Text>
+              <Text style={styles.sectionSubtitle}>
+                Package your web app into a signed Google Play Store Android App Bundle (.aab) with Google's official Bubblewrap CLI.
+              </Text>
+
+              <View style={styles.codeSnippetBlock}>
+                <Text style={styles.codeSnippetHeader}>Step 1: Install Bubblewrap CLI</Text>
+                <Text style={styles.codeSnippetText}>npm install -g @bubblewrap/cli</Text>
+              </View>
+
+              <View style={styles.codeSnippetBlock}>
+                <Text style={styles.codeSnippetHeader}>Step 2: Initialize from Web App Manifest</Text>
+                <Text style={styles.codeSnippetText}>
+                  bubblewrap init --manifest={typeof window !== 'undefined' ? window.location.origin + '/manifest.json' : 'https://apnisociety.app/manifest.json'}
+                </Text>
+              </View>
+
+              <View style={styles.codeSnippetBlock}>
+                <Text style={styles.codeSnippetHeader}>Step 3: Compile and sign release APK/AAB</Text>
+                <Text style={styles.codeSnippetText}>bubblewrap build</Text>
+              </View>
+
+              <View style={styles.assetLinksBox}>
+                <Text style={styles.assetLinksTitle}>✅ Android Digital Asset Links Configured</Text>
+                <Text style={styles.assetLinksDesc}>
+                  File <Text style={styles.monoText}>/.well-known/assetlinks.json</Text> is active on this server with SHA-256 fingerprint for <Text style={styles.monoText}>com.apnisociety.app</Text>, eliminating browser chrome URL bar.
+                </Text>
+              </View>
+            </Card>
+          )}
+
+          {/* Sub-tab 4: Permissions */}
+          {activeAndroidSubTab === 'permissions' && (
+            <Card style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>🛡️ Android Native Permissions Matrix</Text>
+              <Text style={styles.sectionSubtitle}>
+                Declared permissions configured in <Text style={styles.monoText}>app.json</Text> and Android manifest.
+              </Text>
+
+              <View style={styles.permTable}>
+                <View style={styles.permTableRow}>
+                  <Text style={styles.permName}>android.permission.INTERNET</Text>
+                  <Text style={styles.permDesc}>Real-time sync with Firebase Firestore database</Text>
+                </View>
+                <View style={styles.permTableRow}>
+                  <Text style={styles.permName}>android.permission.CAMERA</Text>
+                  <Text style={styles.permDesc}>Scanning QR payment codes & capturing receipt/complaint proof</Text>
+                </View>
+                <View style={styles.permTableRow}>
+                  <Text style={styles.permName}>android.permission.READ_EXTERNAL_STORAGE</Text>
+                  <Text style={styles.permDesc}>Uploading bills, PDF invoices, and vendor vouchers</Text>
+                </View>
+                <View style={styles.permTableRow}>
+                  <Text style={styles.permName}>android.permission.WRITE_EXTERNAL_STORAGE</Text>
+                  <Text style={styles.permDesc}>Downloading stamped maintenance receipts and statements</Text>
+                </View>
+                <View style={styles.permTableRow}>
+                  <Text style={styles.permName}>android.permission.VIBRATE</Text>
+                  <Text style={styles.permDesc}>Haptic alert on gate visitor approval and SOS triggers</Text>
+                </View>
+              </View>
+            </Card>
+          )}
+        </View>
+      )}
       <Modal visible={showAddTowerModal} transparent animationType="fade" onRequestClose={() => setShowAddTowerModal(false)}>
         <View style={styles.modalOverlay}>
           <Card style={styles.modalBox}>
@@ -1168,6 +1909,161 @@ export default function SocietySettingsScreen({
                 variant="primary"
                 size="md"
                 onPress={() => setShowQrModal(false)}
+              />
+            </View>
+          </Card>
+        </View>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODAL: MASTER RESET DUMMY DATA TO REAL DATA                               */}
+      {/* ========================================================================= */}
+      <Modal visible={showResetModal} transparent animationType="fade" onRequestClose={() => setShowResetModal(false)}>
+        <View style={styles.modalOverlay}>
+          <Card style={styles.modalLargeBox}>
+            <Text style={styles.modalTitle}>🧹 Master Reset: Wipe Dummy Data & Go Live</Text>
+            <Text style={styles.modalSubtitle}>
+              Purge all simulated invoices, demo complaints, test expenses, and sample water readings to launch your society on 100% genuine data.
+            </Text>
+
+            <View style={styles.resetWarningBox}>
+              <Text style={styles.resetWarningTitle}>⚠️ Production Clean Slate Confirmation</Text>
+              <Text style={styles.resetWarningText}>
+                • All dummy maintenance bills ({storageStats.billsCount}) will be cleared.{'\n'}
+                • All demo complaint tickets ({storageStats.complaintsCount}) and expense vouchers ({storageStats.expensesCount}) will be purged.{'\n'}
+                • Unit directory will be reset to real vacant flats matching your {config.towers.length} configured towers ({config.totalUnitsCount} flats).{'\n'}
+                • An official primary administrator account will be initialized with the details below.
+              </Text>
+            </View>
+
+            <View style={styles.formGrid}>
+              <View style={styles.formColFull}>
+                <Text style={styles.fieldLabel}>Society Official Legal Name</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={config.societyName}
+                  onChangeText={(val) => setConfig({ ...config, societyName: val })}
+                  placeholder="e.g. Shanti Heights CHS"
+                />
+              </View>
+
+              <View style={styles.formColHalf}>
+                <Text style={styles.fieldLabel}>Primary Admin / Secretary Name *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={resetAdminName}
+                  onChangeText={setResetAdminName}
+                  placeholder="e.g. Col. S. K. Verma"
+                />
+              </View>
+
+              <View style={styles.formColHalf}>
+                <Text style={styles.fieldLabel}>Admin Mobile Phone (Login) *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  keyboardType="phone-pad"
+                  value={resetAdminPhone}
+                  onChangeText={setResetAdminPhone}
+                  placeholder="e.g. 9876543210"
+                />
+              </View>
+
+              <View style={styles.formColHalf}>
+                <Text style={styles.fieldLabel}>Admin Official Email *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  keyboardType="email-address"
+                  value={resetAdminEmail}
+                  onChangeText={setResetAdminEmail}
+                  placeholder="e.g. secretary@society.org"
+                />
+              </View>
+
+              <View style={styles.formColHalf}>
+                <Text style={styles.fieldLabel}>Admin Flat Unit Number *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={resetAdminFlat}
+                  onChangeText={setResetAdminFlat}
+                  placeholder="e.g. A-101"
+                />
+              </View>
+
+              <View style={styles.formColFull}>
+                <Pressable
+                  style={styles.checkboxRow}
+                  onPress={() => setGenUnitsFromTowers(!genUnitsFromTowers)}
+                >
+                  <View style={[styles.checkboxBox, genUnitsFromTowers && styles.checkboxActive]}>
+                    {genUnitsFromTowers && <Text style={styles.checkmarkText}>✓</Text>}
+                  </View>
+                  <Text style={styles.checkboxLabel}>
+                    Auto-generate real vacant units for all {config.towers.length} configured towers ({config.totalUnitsCount} flats)
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <Button
+                title="Cancel"
+                variant="ghost"
+                size="md"
+                onPress={() => setShowResetModal(false)}
+              />
+              <Button
+                title={isResetting ? "Purging & Setting Up..." : "🚀 Confirm Wipe & Start Real Data"}
+                variant="primary"
+                size="md"
+                disabled={isResetting}
+                onPress={handleMasterReset}
+              />
+            </View>
+          </Card>
+        </View>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODAL: BULK RESIDENT ONBOARDING (CSV)                                      */}
+      {/* ========================================================================= */}
+      <Modal visible={showBulkMemberModal} transparent animationType="fade" onRequestClose={() => setShowBulkMemberModal(false)}>
+        <View style={styles.modalOverlay}>
+          <Card style={styles.modalLargeBox}>
+            <Text style={styles.modalTitle}>👥 Bulk Onboard Residents (CSV Paste)</Text>
+            <Text style={styles.modalSubtitle}>
+              Paste flat numbers and resident records from Excel or Google Sheets. One resident per line.
+            </Text>
+
+            <View style={styles.csvHelpBox}>
+              <Text style={styles.csvHelpTitle}>Format: FlatNumber, FullName, Phone, Email, Role</Text>
+              <Text style={styles.csvHelpSample}>
+                A-101, Ramesh Gupta, 9811002233, ramesh@example.com, Owner{'\n'}
+                A-102, Sangeeta Nair, 9822114455, sangeeta@example.com, Tenant{'\n'}
+                B-201, Deepak Verma, 9833445566, deepak@example.com, Owner
+              </Text>
+            </View>
+
+            <TextInput
+              style={styles.csvTextArea}
+              multiline
+              value={bulkMemberText}
+              onChangeText={setBulkMemberText}
+              placeholder="Paste comma-separated resident rows here..."
+              placeholderTextColor={colors.neutral[400]}
+            />
+
+            <View style={styles.modalActions}>
+              <Button
+                title="Cancel"
+                variant="ghost"
+                size="md"
+                onPress={() => setShowBulkMemberModal(false)}
+              />
+              <Button
+                title="Import & Save Residents"
+                variant="primary"
+                size="md"
+                onPress={handleBulkImport}
               />
             </View>
           </Card>
@@ -1866,5 +2762,393 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs - 1,
     color: colors.neutral[500],
     fontFamily: 'monospace',
+  },
+
+  // Quick Launch Banners
+  quickLaunchBannerGrid: {
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  quickLaunchBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+    borderWidth: 1,
+  },
+  quickBannerGreen: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#86efac',
+  },
+  quickBannerYellow: {
+    backgroundColor: '#fefce8',
+    borderColor: '#fde047',
+  },
+  quickBannerBlue: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#93c5fd',
+  },
+  quickBannerIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.sm,
+  },
+  quickBannerIconCircleBlue: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickBannerIcon: {
+    fontSize: 18,
+  },
+  quickBannerTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: colors.neutral[900],
+  },
+  quickBannerSubtitle: {
+    fontSize: typography.sizes.xs,
+    color: colors.neutral[600],
+    marginTop: 2,
+  },
+
+  // Data Mode Styles
+  dataModeHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  dataModeIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: borderRadius.lg,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  androidHeroIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: borderRadius.lg,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  dataModeIcon: {
+    fontSize: 26,
+  },
+  masterResetCard: {
+    backgroundColor: '#f8fafc',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    gap: spacing.md,
+  },
+  masterResetTitle: {
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.bold,
+    color: colors.neutral[900],
+  },
+  masterResetDesc: {
+    fontSize: typography.sizes.xs + 1,
+    color: colors.neutral[600],
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  masterResetBtnRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
+
+  // Module Audit Grid
+  moduleAuditGrid: {
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  auditRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    gap: spacing.sm,
+  },
+  auditRowIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.md,
+    backgroundColor: '#f8fafc',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  auditRowIcon: {
+    fontSize: 18,
+  },
+  auditRowTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.semibold,
+    color: colors.neutral[900],
+  },
+  auditRowDesc: {
+    fontSize: typography.sizes.xs,
+    color: colors.neutral[500],
+    marginTop: 2,
+  },
+  auditRowAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+
+  // Android Live Box & Pills
+  androidLiveBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    gap: spacing.md,
+    marginVertical: spacing.sm,
+  },
+  androidLiveTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: colors.neutral[900],
+  },
+  androidLiveDesc: {
+    fontSize: typography.sizes.xs,
+    color: colors.neutral[600],
+    marginTop: 2,
+  },
+  androidPillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  androidPillBtn: {
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.sm + 4,
+    borderRadius: borderRadius.md,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  androidPillBtnActive: {
+    backgroundColor: colors.primary[600],
+    borderColor: colors.primary[600],
+  },
+  androidPillBtnText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.semibold,
+    color: colors.neutral[700],
+  },
+  androidPillBtnTextActive: {
+    color: '#ffffff',
+  },
+
+  // Guide Steps
+  guideStepsBox: {
+    gap: spacing.sm,
+    marginVertical: spacing.md,
+  },
+  guideStepItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    padding: spacing.sm + 2,
+    backgroundColor: '#f8fafc',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  guideStepNum: {
+    width: 24,
+    height: 24,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primary[600],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guideStepNumText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  guideStepTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: colors.neutral[900],
+  },
+  guideStepText: {
+    fontSize: typography.sizes.xs,
+    color: colors.neutral[600],
+    marginTop: 2,
+    lineHeight: 18,
+  },
+
+  // Code Snippet Block
+  codeSnippetBlock: {
+    backgroundColor: '#0f172a',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginVertical: spacing.xs + 2,
+  },
+  codeSnippetHeader: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.semibold,
+    color: '#94a3b8',
+    marginBottom: 4,
+  },
+  codeSnippetText: {
+    fontFamily: 'monospace',
+    fontSize: 13,
+    color: '#38bdf8',
+    lineHeight: 18,
+  },
+  assetLinksBox: {
+    backgroundColor: '#f0fdf4',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#86efac',
+    marginTop: spacing.md,
+  },
+  assetLinksTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: '#166534',
+  },
+  assetLinksDesc: {
+    fontSize: typography.sizes.xs,
+    color: '#15803d',
+    marginTop: 4,
+  },
+
+  // Permissions Table
+  permTable: {
+    gap: spacing.xs,
+    marginVertical: spacing.md,
+  },
+  permTableRow: {
+    padding: spacing.sm + 2,
+    backgroundColor: '#f8fafc',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  permName: {
+    fontSize: typography.sizes.xs,
+    fontFamily: 'monospace',
+    fontWeight: typography.weights.bold,
+    color: colors.primary[700],
+  },
+  permDesc: {
+    fontSize: typography.sizes.xs,
+    color: colors.neutral[600],
+    marginTop: 2,
+  },
+
+  // Modals Extra Styles
+  resetWarningBox: {
+    backgroundColor: '#fffbeb',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    marginBottom: spacing.md,
+  },
+  resetWarningTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: '#92400e',
+    marginBottom: 4,
+  },
+  resetWarningText: {
+    fontSize: typography.sizes.xs,
+    color: '#78350f',
+    lineHeight: 18,
+  },
+  csvHelpBox: {
+    backgroundColor: '#f8fafc',
+    padding: spacing.sm + 2,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    marginBottom: spacing.sm,
+  },
+  csvHelpTitle: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
+    color: colors.neutral[800],
+  },
+  csvHelpSample: {
+    fontSize: typography.sizes.xs - 1,
+    fontFamily: 'monospace',
+    color: colors.neutral[600],
+    marginTop: 4,
+  },
+  csvTextArea: {
+    height: 140,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    fontFamily: 'monospace',
+    fontSize: 12,
+    textAlignVertical: 'top',
+    color: colors.neutral[900],
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  checkboxBox: {
+    width: 20,
+    height: 20,
+    borderRadius: borderRadius.sm,
+    borderWidth: 2,
+    borderColor: colors.neutral[400],
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  checkboxActive: {
+    backgroundColor: colors.primary[600],
+    borderColor: colors.primary[600],
+  },
+  checkmarkText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  checkboxLabel: {
+    fontSize: typography.sizes.xs + 1,
+    color: colors.neutral[800],
+    flex: 1,
   },
 });

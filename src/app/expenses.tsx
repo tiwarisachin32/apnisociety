@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -14,6 +14,7 @@ import { APP_NAME, PERMISSIONS } from '../constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
+import { subscribeToDataReset } from '../services/dataManager';
 import {
   addSocietyExpense,
   disburseReimbursementPayment,
@@ -51,6 +52,15 @@ export default function ExpensesScreen() {
   const [expenses, setExpenses] = useState<SocietyExpense[]>(() => getSocietyExpenses());
   const [claims, setClaims] = useState<ReimbursementClaim[]>(() => getReimbursementClaims());
   const [budget, setBudget] = useState<ExpenseBudgetSummary>(() => getExpenseBudgetSummary());
+
+  useEffect(() => {
+    const unsub = subscribeToDataReset(() => {
+      setExpenses(getSocietyExpenses());
+      setClaims(getReimbursementClaims());
+      setBudget(getExpenseBudgetSummary());
+    });
+    return unsub;
+  }, []);
 
   // Search & Filter for Vouchers
   const [searchQuery, setSearchQuery] = useState('');

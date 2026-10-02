@@ -6,6 +6,7 @@ import {
   SocietyUnit,
   VehicleDetail,
 } from '../types/members';
+import { isRealDataMode } from './dataManager';
 
 const STORAGE_MEMBERS_KEY = 'apnisociety_members_data';
 const STORAGE_STAFF_KEY = 'apnisociety_staff_data';
@@ -865,12 +866,13 @@ export function getStoredMembers(): SocietyMember[] {
   try {
     const raw = localStorage.getItem(STORAGE_MEMBERS_KEY);
     if (!raw) {
+      if (isRealDataMode()) return [];
       localStorage.setItem(STORAGE_MEMBERS_KEY, JSON.stringify(INITIAL_MEMBERS));
       return INITIAL_MEMBERS;
     }
     return JSON.parse(raw);
   } catch {
-    return INITIAL_MEMBERS;
+    return isRealDataMode() ? [] : INITIAL_MEMBERS;
   }
 }
 
@@ -884,30 +886,32 @@ export function saveMembers(members: SocietyMember[]): void {
 }
 
 export function getStoredStaff(): SocietyStaffMember[] {
-  if (typeof window === 'undefined') return INITIAL_STAFF;
+  if (typeof window === 'undefined') return isRealDataMode() ? [] : INITIAL_STAFF;
   try {
     const raw = localStorage.getItem(STORAGE_STAFF_KEY);
     if (!raw) {
+      if (isRealDataMode()) return [];
       localStorage.setItem(STORAGE_STAFF_KEY, JSON.stringify(INITIAL_STAFF));
       return INITIAL_STAFF;
     }
     return JSON.parse(raw);
   } catch {
-    return INITIAL_STAFF;
+    return isRealDataMode() ? [] : INITIAL_STAFF;
   }
 }
 
 export function getStoredUnits(): SocietyUnit[] {
-  if (typeof window === 'undefined') return INITIAL_UNITS;
+  if (typeof window === 'undefined') return isRealDataMode() ? [] : INITIAL_UNITS;
   try {
     const raw = localStorage.getItem(STORAGE_UNITS_KEY);
     if (!raw) {
+      if (isRealDataMode()) return [];
       localStorage.setItem(STORAGE_UNITS_KEY, JSON.stringify(INITIAL_UNITS));
       return INITIAL_UNITS;
     }
     return JSON.parse(raw);
   } catch {
-    return INITIAL_UNITS;
+    return isRealDataMode() ? [] : INITIAL_UNITS;
   }
 }
 

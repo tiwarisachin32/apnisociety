@@ -4,6 +4,7 @@ import {
   MaintenanceSummary,
   NewBillingCyclePayload,
 } from '../types/maintenance';
+import { isRealDataMode } from './dataManager';
 
 const STORAGE_KEY_BILLS = 'apnisociety_maintenance_bills';
 
@@ -291,14 +292,15 @@ function getStoredBills(): MaintenanceBill[] {
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_BILLS);
-      if (stored) {
+      if (stored !== null) {
         return JSON.parse(stored);
       }
+      if (isRealDataMode()) return [];
     } catch {
       // fallback
     }
   }
-  return inMemoryBills;
+  return isRealDataMode() ? [] : inMemoryBills;
 }
 
 function saveBills(bills: MaintenanceBill[]): void {

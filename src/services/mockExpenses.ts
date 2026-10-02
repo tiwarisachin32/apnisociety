@@ -6,6 +6,7 @@ import {
   ReimbursementClaim,
   SocietyExpense,
 } from '../types/expenses';
+import { isRealDataMode } from './dataManager';
 
 const STORAGE_KEY_EXPENSES = 'apnisociety_expenses_data';
 const STORAGE_KEY_CLAIMS = 'apnisociety_reimbursement_claims';
@@ -225,10 +226,11 @@ export function getStoredExpenses(): SocietyExpense[] {
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_EXPENSES);
-      if (stored) return JSON.parse(stored);
+      if (stored !== null) return JSON.parse(stored);
+      if (isRealDataMode()) return [];
     } catch {}
   }
-  return inMemoryExpenses;
+  return isRealDataMode() ? [] : inMemoryExpenses;
 }
 
 function saveExpenses(expenses: SocietyExpense[]): void {
@@ -244,10 +246,11 @@ function getStoredClaims(): ReimbursementClaim[] {
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_CLAIMS);
-      if (stored) return JSON.parse(stored);
+      if (stored !== null) return JSON.parse(stored);
+      if (isRealDataMode()) return [];
     } catch {}
   }
-  return inMemoryClaims;
+  return isRealDataMode() ? [] : inMemoryClaims;
 }
 
 function saveClaims(claims: ReimbursementClaim[]): void {

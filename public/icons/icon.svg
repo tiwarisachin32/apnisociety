@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#1D4ED8" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="100%" stop-color="#EAB308" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- Background rounded squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#blueGrad)" />
+
+  <!-- Inner subtle grid lines -->
+  <path d="M 64,256 L 448,256 M 256,64 L 256,448" stroke="rgba(255,255,255,0.06)" stroke-width="2" />
+
+  <!-- Shield Base -->
+  <g filter="url(#shadow)">
+    <!-- Tower Left -->
+    <rect x="136" y="210" width="70" height="170" rx="8" fill="#FFFFFF" fill-opacity="0.9" />
+    <rect x="152" y="235" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="174" y="235" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="152" y="265" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="174" y="265" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="152" y="295" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="174" y="295" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="152" y="325" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="174" y="325" width="16" height="16" rx="3" fill="#2563EB" />
+
+    <!-- Center Grand Tower -->
+    <rect x="216" y="140" width="80" height="240" rx="8" fill="#FFFFFF" />
+    <!-- Roof peak -->
+    <path d="M 216,144 L 256,104 L 296,144 Z" fill="url(#goldGrad)" />
+    <!-- Windows -->
+    <rect x="232" y="165" width="18" height="18" rx="3" fill="#1D4ED8" />
+    <rect x="262" y="165" width="18" height="18" rx="3" fill="#1D4ED8" />
+    <rect x="232" y="195" width="18" height="18" rx="3" fill="#1D4ED8" />
+    <rect x="262" y="195" width="18" height="18" rx="3" fill="#1D4ED8" />
+    <rect x="232" y="225" width="18" height="18" rx="3" fill="#1D4ED8" />
+    <rect x="262" y="225" width="18" height="18" rx="3" fill="#1D4ED8" />
+    <rect x="232" y="255" width="18" height="18" rx="3" fill="#1D4ED8" />
+    <rect x="262" y="255" width="18" height="18" rx="3" fill="#1D4ED8" />
+    <rect x="232" y="285" width="18" height="18" rx="3" fill="#1D4ED8" />
+    <rect x="262" y="285" width="18" height="18" rx="3" fill="#1D4ED8" />
+    <!-- Main Arch Door -->
+    <path d="M 242,380 L 242,335 C 242,328 270,328 270,335 L 270,380 Z" fill="url(#goldGrad)" />
+
+    <!-- Tower Right -->
+    <rect x="306" y="185" width="70" height="195" rx="8" fill="#FFFFFF" fill-opacity="0.9" />
+    <rect x="322" y="210" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="344" y="210" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="322" y="240" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="344" y="240" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="322" y="270" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="344" y="270" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="322" y="300" width="16" height="16" rx="3" fill="#2563EB" />
+    <rect x="344" y="300" width="16" height="16" rx="3" fill="#2563EB" />
+
+    <!-- Base Plinth & Ground -->
+    <rect x="110" y="375" width="292" height="16" rx="8" fill="#FFFFFF" />
+
+    <!-- Floating Security Crest / Star -->
+    <circle cx="256" cy="76" r="16" fill="url(#goldGrad)" />
+    <polygon points="256,66 260,74 268,75 262,81 264,89 256,84 248,89 250,81 244,75 252,74" fill="#FFFFFF" />
+  </g>
+
+  <!-- Typography Banner -->
+  <text x="256" y="440" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="800" fill="#FFFFFF" text-anchor="middle" letter-spacing="3">APNI SOCIETY</text>
+  <text x="256" y="468" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="600" fill="rgba(255,255,255,0.8)" text-anchor="middle" letter-spacing="1.5">RESIDENT &amp; COMMITTEE PORTAL</text>
+</svg>

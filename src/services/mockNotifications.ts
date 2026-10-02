@@ -7,6 +7,7 @@ import {
   TargetAudience,
   UserNotificationPreferences,
 } from '../types/notifications';
+import { isRealDataMode } from './dataManager';
 
 const STORAGE_KEY_NOTIFICATIONS = 'apnisociety_notifications_v1';
 const STORAGE_KEY_PREFERENCES = 'apnisociety_user_notif_prefs_v1';
@@ -161,10 +162,11 @@ function getStoredNotifications(): SocietyNotification[] {
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_NOTIFICATIONS);
-      if (stored) return JSON.parse(stored);
+      if (stored !== null) return JSON.parse(stored);
+      if (isRealDataMode()) return [];
     } catch {}
   }
-  return inMemoryNotifications;
+  return isRealDataMode() ? [] : inMemoryNotifications;
 }
 
 function saveNotifications(notifs: SocietyNotification[]): void {

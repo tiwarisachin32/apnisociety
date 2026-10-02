@@ -5,6 +5,7 @@ import {
   ReviewClaimPayload,
   SubmitClaimPayload,
 } from '../types/reimbursements';
+import { isRealDataMode } from './dataManager';
 
 const STORAGE_KEY_DETAILED_CLAIMS = 'apnisociety_detailed_claims_v1';
 
@@ -443,10 +444,11 @@ function getStoredDetailedClaims(): DetailedReimbursementClaim[] {
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_DETAILED_CLAIMS);
-      if (stored) return JSON.parse(stored);
+      if (stored !== null) return JSON.parse(stored);
+      if (isRealDataMode()) return [];
     } catch {}
   }
-  return inMemoryDetailedClaims;
+  return isRealDataMode() ? [] : inMemoryDetailedClaims;
 }
 
 function saveDetailedClaims(claims: DetailedReimbursementClaim[]): void {
