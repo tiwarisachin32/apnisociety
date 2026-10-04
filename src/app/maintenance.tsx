@@ -272,7 +272,7 @@ export default function MaintenanceScreen() {
           {/* Outstanding Invoice Card */}
           {currentPendingBill ? (
             <Card
-              title={`Maintenance Invoice • ${currentPendingBill.month}`}
+              title={`Maintenance Invoice • ${currentPendingBill?.month || 'Current Cycle'}`}
               subtitle={`Bill #${currentPendingBill.billNumber} • Issued for Flat ${currentPendingBill.flatNumber}`}
               action={
                 <StatusBadge
@@ -372,7 +372,7 @@ export default function MaintenanceScreen() {
                 <View key={bill.id} style={styles.receiptItemCard}>
                   <View style={styles.receiptLeft}>
                     <View style={styles.receiptMonthRow}>
-                      <Text style={styles.receiptMonthTitle}>{bill.month}</Text>
+                      <Text style={styles.receiptMonthTitle}>{bill?.month || 'Past Cycle'}</Text>
                       <StatusBadge status="paid" label="PAID" size="sm" />
                     </View>
                     <Text style={styles.receiptMetaText}>
@@ -537,7 +537,7 @@ export default function MaintenanceScreen() {
                     <View style={styles.residentInfoCol}>
                       <Text style={styles.residentNameText}>{bill.residentName}</Text>
                       <Text style={styles.billNumberSub}>
-                        Bill: {bill.billNumber} • {bill.month}
+                        Bill: {bill?.billNumber} • {bill?.month || 'Current'}
                       </Text>
                     </View>
 
@@ -618,7 +618,7 @@ export default function MaintenanceScreen() {
                   <View>
                     <Text style={styles.modalTitle}>Pay Maintenance Bill</Text>
                     <Text style={styles.modalSubtitle}>
-                      {paymentModalBill.month} • Flat {paymentModalBill.flatNumber}
+                      {paymentModalBill?.month || 'Current Cycle'} • Flat {paymentModalBill?.flatNumber}
                     </Text>
                   </View>
                   <Pressable
@@ -821,7 +821,7 @@ export default function MaintenanceScreen() {
                   <Text style={styles.offlineAmountVal}>
                     ₹{offlineModalBill.totalAmount.toLocaleString('en-IN')}
                   </Text>
-                  <Text style={styles.offlineAmountCycle}>{offlineModalBill.month}</Text>
+                  <Text style={styles.offlineAmountCycle}>{offlineModalBill?.month || 'Current Cycle'}</Text>
                 </View>
 
                 {/* Payment Method */}

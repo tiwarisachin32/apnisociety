@@ -5,9 +5,10 @@ import { borderRadius, colors, shadows, spacing } from '../../constants/theme';
 
 interface AndroidInstallBannerProps {
   onOpenAndroidHub?: () => void;
+  isAppOwner?: boolean;
 }
 
-export function AndroidInstallBanner({ onOpenAndroidHub }: AndroidInstallBannerProps) {
+export function AndroidInstallBanner({ onOpenAndroidHub, isAppOwner }: AndroidInstallBannerProps) {
   const { isInstallable, isInstalled, isAndroid, triggerInstall } = useAndroidInstallPrompt();
   const [dismissed, setDismissed] = useState(false);
   const [installing, setInstalling] = useState(false);
@@ -19,7 +20,7 @@ export function AndroidInstallBanner({ onOpenAndroidHub }: AndroidInstallBannerP
       setInstalling(true);
       await triggerInstall();
       setInstalling(false);
-    } else if (onOpenAndroidHub) {
+    } else if (isAppOwner && onOpenAndroidHub) {
       onOpenAndroidHub();
     }
   };
@@ -43,14 +44,16 @@ export function AndroidInstallBanner({ onOpenAndroidHub }: AndroidInstallBannerP
         </Text>
       </View>
       <View style={styles.actionRow}>
-        <Pressable
-          style={[styles.installBtn, installing && styles.installBtnDisabled]}
-          onPress={handleInstallClick}
-        >
-          <Text style={styles.installBtnText}>
-            {installing ? 'Installing...' : isInstallable ? '📥 Install App' : '⚙️ Android Hub'}
-          </Text>
-        </Pressable>
+        {(isInstallable || isAppOwner) && (
+          <Pressable
+            style={[styles.installBtn, installing && styles.installBtnDisabled]}
+            onPress={handleInstallClick}
+          >
+            <Text style={styles.installBtnText}>
+              {installing ? 'Installing...' : isInstallable ? '📥 Install App' : '⚙️ Android Hub'}
+            </Text>
+          </Pressable>
+        )}
         <Pressable style={styles.closeBtn} onPress={() => setDismissed(true)}>
           <Text style={styles.closeBtnText}>✕</Text>
         </Pressable>

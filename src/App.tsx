@@ -25,7 +25,7 @@ import RolesPermissionsScreen from './app/rolesPermissions';
 import SocietySettingsScreen from './app/societySettings';
 import WaterScreen from './app/water';
 import { AndroidInstallBanner } from './components/common/AndroidInstallBanner';
-import { Button, Card } from './components/ui';
+import { AppLogo, Button, Card, SocietyLogo } from './components/ui';
 import { APP_NAME, PERMISSIONS, PermissionType } from './constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from './constants/theme';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -211,7 +211,7 @@ function AppContent() {
   const [showDevConsole, setShowDevConsole] = useState(false);
   const [targetRoleToEdit, setTargetRoleToEdit] = useState<string | null>(null);
   const [targetMemberToEdit, setTargetMemberToEdit] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const { isDesktop, isMobile } = useResponsive();
 
   // Hidden developer shortcut: Ctrl + Shift + D or Cmd + Shift + D (Restricted to App Owner)
@@ -284,37 +284,65 @@ function AppContent() {
 
   const isCurrentTabPermitted = isTabPermitted(activeTab, user);
 
+  // If user is not signed in, show the Credential Login page directly
+  if (isLoading) {
+    return (
+      <View style={[styles.appContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ fontSize: 16, color: colors.neutral[600] }}>Loading {APP_NAME}...</Text>
+      </View>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return <LoginScreen onNavigateToDashboard={() => setActiveTab('dashboard')} />;
+  }
+
   return (
     <View style={styles.appContainer}>
       {/* Android Native WebAPK & PWA Install Banner */}
-      <AndroidInstallBanner onOpenAndroidHub={() => handleNav('settings')} />
+      <AndroidInstallBanner
+        onOpenAndroidHub={user?.isAppOwner ? () => handleNav('settings') : undefined}
+        isAppOwner={Boolean(user?.isAppOwner)}
+      />
 
       {/* Header Bar */}
       <View style={styles.topHeader}>
         <View style={styles.brandRow}>
-          <Pressable onPress={() => handleNav('dashboard')} style={styles.brandLogoContainer}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoText}>🏢</Text>
-            </View>
-            <View>
-              <Text style={styles.brandTitle}>{APP_NAME}</Text>
-              <Text style={styles.brandSubtitle}>
-                {user?.societyCode ? `${user.societyCode} • ${societyConfig.societyName}` : societyConfig.societyName}
-              </Text>
+          <Pressable
+            onPress={() => handleNav('dashboard')}
+            style={styles.brandLogoContainer}
+            accessibilityLabel="ApniSociety Home"
+          >
+            <AppLogo size={36} variant="mark" />
+            <View style={styles.brandTextGroup}>
+              <View style={styles.brandTitleRow}>
+                <Text style={styles.brandTitle}>{APP_NAME}</Text>
+              </View>
+              <View style={styles.societySubtitleRow}>
+                <SocietyLogo
+                  societyName={societyConfig.societyName}
+                  societyCode={user?.societyCode || societyConfig.societyCode}
+                  logoUrl={societyConfig.logoUrl}
+                  size="xs"
+                />
+                <Text style={styles.brandSubtitle} numberOfLines={1}>
+                  {user?.societyCode ? `${user.societyCode} • ${societyConfig.societyName}` : societyConfig.societyName}
+                </Text>
+              </View>
             </View>
           </Pressable>
         </View>
 
         {/* User Persona Pill & Switcher */}
         <View style={styles.headerRight}>
-          {Boolean(user?.isCommitteeMember) && (
+          {Boolean(user?.isAppOwner) && (
             <Pressable
               onPress={() => handleNav('settings')}
               style={[
                 styles.headerSetupBtn,
                 activeTab === 'settings' && styles.headerSetupBtnActive,
               ]}
-              accessibilityLabel="Society Setup & Customization"
+              accessibilityLabel="App Company Console"
             >
               <Text
                 style={[
@@ -322,7 +350,7 @@ function AppContent() {
                   activeTab === 'settings' && styles.headerSetupBtnTextActive,
                 ]}
               >
-                ⚙️ Society Setup
+                🏢 App Company Console
               </Text>
             </Pressable>
           )}
@@ -331,7 +359,7 @@ function AppContent() {
             <Pressable
               onPress={() => handleNav('login')}
               style={styles.userProfilePill}
-              accessibilityLabel="Switch User Persona"
+              accessibilityLabel={user.isAppOwner ? "App Owner Switch Persona" : "Account Profile"}
             >
               <View style={styles.userAvatar}>
                 <Text style={styles.avatarChar}>{user.name.charAt(0)}</Text>
@@ -342,7 +370,7 @@ function AppContent() {
                   {user.roleTitle} {user.flatNumber ? `• ${user.flatNumber}` : ''}
                 </Text>
               </View>
-              <Text style={styles.switchIcon}>⇄</Text>
+              {Boolean(user.isAppOwner) && <Text style={styles.switchIcon}>⇄</Text>}
             </Pressable>
           )}
         </View>
@@ -409,6 +437,7 @@ function AppContent() {
             onNavigateToRoles={() => handleNav('roles')}
             onNavigateToReports={() => handleNav('reports')}
             onNavigateToSettings={() => handleNav('settings')}
+            onNavigateToLogin={() => handleNav('login')}
           />
         ) : activeTab === 'maintenance' ? (
           <MaintenanceScreen />
@@ -672,24 +701,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  logoBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.primary[50],
-    alignItems: 'center',
+  brandTextGroup: {
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.primary[200],
   },
-  logoText: {
-    fontSize: 20,
+  brandTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   brandTitle: {
     fontSize: typography.sizes.base,
     fontWeight: typography.weights.bold,
-    color: colors.primary[700],
+    color: '#0F2C59',
     lineHeight: 20,
+  },
+  societySubtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
   },
   brandSubtitle: {
     fontSize: typography.sizes.xs,

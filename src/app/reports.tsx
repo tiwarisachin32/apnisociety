@@ -217,8 +217,12 @@ export default function ReportsScreen({
             </Text>
           </View>
 
-          {/* User Persona Pill & Switcher */}
-          <Pressable onPress={() => setShowPersonaModal(true)} style={styles.userProfilePill}>
+          {/* User Persona Pill */}
+          <Pressable
+            onPress={() => Boolean(user?.isAppOwner) && setShowPersonaModal(true)}
+            style={styles.userProfilePill}
+            accessibilityLabel={user?.isAppOwner ? "Switch Persona" : "User Profile"}
+          >
             <View style={styles.userAvatarMini}>
               <Text style={styles.userAvatarMiniText}>
                 {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
@@ -226,7 +230,9 @@ export default function ReportsScreen({
             </View>
             <View>
               <Text style={styles.userNameMini}>{user?.name || 'Resident'}</Text>
-              <Text style={styles.userRoleMini}>{user?.roleTitle || 'Owner'} • Switch Persona 🔄</Text>
+              <Text style={styles.userRoleMini}>
+                {user?.roleTitle || 'Owner'}{Boolean(user?.isAppOwner) ? ' • Switch Persona 🔄' : ''}
+              </Text>
             </View>
           </Pressable>
         </View>
@@ -494,9 +500,9 @@ export default function ReportsScreen({
             <Text style={styles.cardSubtitle}>Fiscal Year 2026-27 Cashflow Analysis</Text>
 
             <View style={styles.trendsList}>
-              {financialReport.monthlyTrends.map((tr) => (
-                <View key={tr.month} style={styles.trendRow}>
-                  <Text style={styles.trendMonthCol}>{tr.month}</Text>
+              {(financialReport?.monthlyTrends || []).map((tr, idx) => (
+                <View key={tr?.month || idx} style={styles.trendRow}>
+                  <Text style={styles.trendMonthCol}>{tr?.month || 'N/A'}</Text>
                   <View style={styles.trendBarsCol}>
                     <View style={styles.trendBarRow}>
                       <View
@@ -999,9 +1005,9 @@ export default function ReportsScreen({
       </Modal>
 
       {/* ========================================================================= */}
-      {/* MODAL 3: PERSONA SWITCHER */}
+      {/* MODAL 3: PERSONA SWITCHER (App Owner Only) */}
       {/* ========================================================================= */}
-      <Modal visible={showPersonaModal} transparent animationType="fade">
+      <Modal visible={Boolean(user?.isAppOwner && showPersonaModal)} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>

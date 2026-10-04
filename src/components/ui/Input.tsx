@@ -23,7 +23,7 @@ export interface InputProps extends Omit<TextInputProps, 'style'> {
   required?: boolean;
 }
 
-export const Input: React.FC<InputProps> = ({
+export const Input = React.forwardRef<any, InputProps>(({
   label,
   error,
   helperText,
@@ -37,7 +37,7 @@ export const Input: React.FC<InputProps> = ({
   editable = true,
   placeholderTextColor = colors.neutral[400],
   ...rest
-}) => {
+}, ref) => {
   const [isFocused, setIsFocused] = useState(false);
 
   const handleFocus = (e: NativeSyntheticEvent<any>) => {
@@ -74,6 +74,7 @@ export const Input: React.FC<InputProps> = ({
         {leftIcon && <View style={styles.leftIconWrapper}>{leftIcon}</View>}
 
         <TextInput
+          ref={ref}
           editable={editable}
           placeholderTextColor={placeholderTextColor}
           onFocus={handleFocus}
@@ -97,7 +98,9 @@ export const Input: React.FC<InputProps> = ({
       ) : null}
     </View>
   );
-};
+});
+
+Input.displayName = 'Input';
 
 const styles = StyleSheet.create({
   container: {

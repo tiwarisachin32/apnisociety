@@ -38,21 +38,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           error: null,
         });
         return;
-      } else {
-        // Initialize with default resident persona (Rahul Sharma) for instant dashboard experience
-        const defaultUser = MOCK_USERS[0];
-        setState({
-          user: defaultUser,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null,
-        });
-        return;
       }
     } catch {
       // Fallback
     }
-    setState((prev) => ({ ...prev, isLoading: false }));
+    setState((prev) => ({ ...prev, isLoading: false, isAuthenticated: false, user: null }));
   }, []);
 
   const login = async (credentials: LoginCredentials): Promise<void> => {
@@ -76,6 +66,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginAsDemoUser = async (userOrId: string | User): Promise<void> => {
+    // Restrict persona switching for non-owner users
+    if (state.user && !state.user.isAppOwner) {
+      const err = 'Persona switching is restricted. Only the App Owner can switch personas.';
+      setState((prev) => ({ ...prev, isLoading: false, error: err }));
+      throw new Error(err);
+    }
+
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
     try {
       const targetUser =

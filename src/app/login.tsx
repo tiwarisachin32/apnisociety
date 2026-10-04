@@ -1,17 +1,28 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
-import { Button, Card, Input, StatusBadge } from '../components/ui';
+import { AppLogo, Button, Card, Input, StatusBadge } from '../components/ui';
 import { ScreenContainer } from '../components/layout/ScreenContainer';
 import { APP_NAME, APP_TAGLINE } from '../constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
-import { MOCK_USERS } from '../services/mockAuth';
+import {
+  MOCK_USERS,
+  resetPasswordForIdentifier,
+} from '../services/mockAuth';
+import {
+  DeviceSession,
+  getActiveDeviceSessions,
+  terminateAllOtherSessions,
+  terminateDeviceSession,
+} from '../services/deviceSession';
 
 export interface LoginScreenProps {
   onNavigateToDashboard?: () => void;
@@ -24,8 +35,43 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<{ identifier?: string; password?: string }>({});
-  const [forgotPasswordMsg, setForgotPasswordMsg] = useState(false);
+
+  const passwordInputRef = useRef<any>(null);
+
+  // Multi-device active sessions state
+  const [deviceSessions, setDeviceSessions] = useState<DeviceSession[]>([]);
+  const [deviceActionMsg, setDeviceActionMsg] = useState<string | null>(null);
+
+  // Modals & Panels
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotInput, setForgotInput] = useState('');
+  const [forgotSuccessMsg, setForgotSuccessMsg] = useState<string | null>(null);
+
+  // Refresh active device sessions when user is authenticated
+  useEffect(() => {
+    if (user?.id) {
+      const sessions = getActiveDeviceSessions(user.id);
+      setDeviceSessions(sessions);
+    }
+  }, [user?.id]);
+
+  const handleTerminateSession = (deviceId: string) => {
+    if (!user?.id) return;
+    const updated = terminateDeviceSession(user.id, deviceId);
+    setDeviceSessions(updated.map((s) => ({ ...s, isCurrentDevice: false })));
+    setDeviceActionMsg('Device session signed out successfully.');
+    setTimeout(() => setDeviceActionMsg(null), 3000);
+  };
+
+  const handleTerminateOtherSessions = () => {
+    if (!user?.id) return;
+    const remaining = terminateAllOtherSessions(user.id);
+    setDeviceSessions(remaining);
+    setDeviceActionMsg('Signed out of all other devices. This device remains active.');
+    setTimeout(() => setDeviceActionMsg(null), 3500);
+  };
 
   const validate = (): boolean => {
     const errors: { identifier?: string; password?: string } = {};
@@ -40,7 +86,7 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
     }
 
     if (!password) {
-      errors.password = 'Password is required (min 4 characters).';
+      errors.password = 'Password is required to sign in.';
     } else if (password.length < 4) {
       errors.password = 'Password must be at least 4 characters.';
     }
@@ -50,13 +96,13 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
   };
 
   const handleSubmit = async () => {
-    setForgotPasswordMsg(false);
     if (!validate()) return;
 
     try {
       await login({
         identifier: identifier.trim(),
         password,
+        rememberMe,
       });
       onNavigateToDashboard?.();
     } catch {
@@ -64,34 +110,51 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
     }
   };
 
-  const handleSelectDemoPersona = (demoUser: (typeof MOCK_USERS)[0]) => {
-    setIdentifier(demoUser.email);
-    setPassword('demo1234');
-    setFieldErrors({});
-    setForgotPasswordMsg(false);
-    loginAsDemoUser(demoUser);
-    onNavigateToDashboard?.();
+  const handleResetPassword = () => {
+    if (!forgotInput.trim()) {
+      setForgotSuccessMsg('Please enter your registered email or phone number.');
+      return;
+    }
+    const success = resetPasswordForIdentifier(forgotInput.trim(), 'Password@123');
+    if (success) {
+      setForgotSuccessMsg(
+        'Temporary password set to: "Password@123" (or use "demo1234"). You can now sign in.'
+      );
+      setIdentifier(forgotInput.trim());
+      setPassword('Password@123');
+    } else {
+      setForgotSuccessMsg(
+        'No matching account found. Please check with your Society Secretary or use "demo1234".'
+      );
+    }
   };
 
-  // If already authenticated, show the Active Session state with permissions breakdown
+  // =========================================================================
+  // AUTHENTICATED STATE: Profile + Multi-Device Sessions + (Owner-Only) Switcher
+  // =========================================================================
   if (isAuthenticated && user) {
+    const isAppOwner = Boolean(user.isAppOwner);
+
     return (
       <ScreenContainer maxWidth={680}>
         <View style={styles.header}>
-          <StatusBadge status="paid" label="Session Active" />
-          <Text style={styles.title}>{APP_NAME}</Text>
-          <Text style={styles.subtitle}>Authentication Module</Text>
+          <AppLogo size="md" variant="horizontal" />
+          <View style={{ marginTop: spacing.sm, alignItems: 'center', gap: 4 }}>
+            <StatusBadge status="paid" label="Session Active" />
+            <Text style={styles.profileSubtitle}>Account & Security Profile</Text>
+          </View>
         </View>
 
+        {/* User Profile Card */}
         <Card
-          title="Logged In Profile"
-          subtitle="Dynamic permission-based session"
+          title="Active Account Profile"
+          subtitle="Signed in with registered credentials"
           style={styles.card}
         >
           {/* User Profile Summary */}
           <View style={styles.profileHeader}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
+            <View style={[styles.avatar, isAppOwner && styles.avatarOwner]}>
+              <Text style={[styles.avatarText, isAppOwner && styles.avatarTextOwner]}>
                 {user.name
                   .split(' ')
                   .map((n) => n[0])
@@ -101,7 +164,12 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
             </View>
 
             <View style={styles.profileDetails}>
-              <Text style={styles.profileName}>{user.name}</Text>
+              <View style={styles.nameRow}>
+                <Text style={styles.profileName}>{user.name}</Text>
+                {isAppOwner && (
+                  <StatusBadge status="warning" label="APP OWNER" size="sm" showDot={false} />
+                )}
+              </View>
               <Text style={styles.profileRole}>{user.roleTitle}</Text>
               <Text style={styles.profileMeta}>
                 {user.block} • Flat {user.flatNumber}
@@ -115,29 +183,33 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
           {/* Contact Details */}
           <View style={styles.infoBox}>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Email:</Text>
+              <Text style={styles.infoLabel}>Registered Email:</Text>
               <Text style={styles.infoValue}>{user.email}</Text>
             </View>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Mobile:</Text>
+              <Text style={styles.infoLabel}>Mobile Number:</Text>
               <Text style={styles.infoValue}>{user.phone}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Member Type:</Text>
               <Text style={styles.infoValue}>
-                {user.isCommitteeMember ? 'Managing Committee' : 'Resident'}
+                {isAppOwner
+                  ? 'Platform Super-Admin'
+                  : user.isCommitteeMember
+                  ? 'Managing Committee'
+                  : 'Society Resident'}
               </Text>
             </View>
           </View>
 
-          {/* Assigned Permissions (Dynamic RBAC demonstration) */}
+          {/* Dynamic Permissions Breakdown */}
           <View style={styles.permissionsContainer}>
             <View style={styles.permissionsHeader}>
               <Text style={styles.sectionTitle}>
-                Granted Permissions ({user.permissions.length})
+                Active Access Permissions ({user.permissions.length})
               </Text>
               <Text style={styles.sectionSubtitle}>
-                No hard-coded role checks; features are unlocked strictly by permission keys.
+                Features are dynamically unlocked strictly according to your granted keys.
               </Text>
             </View>
 
@@ -150,7 +222,7 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
             </View>
           </View>
 
-          {/* Switch Persona or Logout */}
+          {/* Dashboard and Sign Out Actions */}
           <View style={styles.sessionActions}>
             {onNavigateToDashboard && (
               <Button
@@ -162,7 +234,7 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
               />
             )}
             <Button
-              title="Sign Out / Switch Persona"
+              title={isAppOwner ? 'Sign Out / Switch Account' : 'Sign Out of this Device'}
               variant="outline"
               fullWidth
               onPress={logout}
@@ -170,54 +242,164 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
           </View>
         </Card>
 
-        {/* Quick Persona Switcher */}
-        <View style={styles.switchPersonaSection}>
-          <Text style={styles.switchPersonaTitle}>Switch to Another Persona:</Text>
-          <View style={styles.demoPersonaGrid}>
-            {MOCK_USERS.map((demo) => {
-              const isCurrent = demo.id === user.id;
+        {/* ================================================================ */}
+        {/* MULTI-DEVICE LOGIN & ACTIVE SESSIONS CARD                        */}
+        {/* ================================================================ */}
+        <Card
+          title="📱 Multi-Device Login & Connected Sessions"
+          subtitle="Concurrent logins active across your devices"
+          style={[styles.card, styles.marginTopMd]}
+        >
+          <View style={styles.multiDeviceBanner}>
+            <Text style={styles.multiDeviceBannerTitle}>
+              ✓ Simultaneous Multi-Device Access Enabled
+            </Text>
+            <Text style={styles.multiDeviceBannerDesc}>
+              Your account can be logged in concurrently on your smartphones, tablets, and computers.
+              Logging in on another device will not disconnect your current session.
+            </Text>
+          </View>
+
+          {deviceActionMsg && (
+            <View style={styles.successBanner}>
+              <Text style={styles.successBannerText}>{deviceActionMsg}</Text>
+            </View>
+          )}
+
+          <View style={styles.sessionsList}>
+            {deviceSessions.map((session, index) => {
+              const isCurrent = session.isCurrentDevice;
               return (
-                <Pressable
-                  key={demo.id}
-                  onPress={() => handleSelectDemoPersona(demo)}
-                  style={[
-                    styles.demoPersonaItem,
-                    isCurrent && styles.demoPersonaItemActive,
-                  ]}
+                <View
+                  key={session.deviceId || index}
+                  style={[styles.sessionItem, isCurrent && styles.sessionItemCurrent]}
                 >
-                  <Text
-                    style={[
-                      styles.demoPersonaName,
-                      isCurrent && styles.demoPersonaNameActive,
-                    ]}
-                  >
-                    {demo.name}
-                  </Text>
-                  <Text style={styles.demoPersonaRole}>{demo.roleTitle.split('(')[0]}</Text>
-                </Pressable>
+                  <View style={styles.sessionIconBox}>
+                    <Text style={styles.sessionIcon}>
+                      {session.deviceType === 'mobile'
+                        ? '📱'
+                        : session.deviceType === 'tablet'
+                        ? '📟'
+                        : '💻'}
+                    </Text>
+                  </View>
+                  <View style={styles.sessionDetails}>
+                    <View style={styles.sessionTitleRow}>
+                      <Text style={styles.sessionName}>{session.deviceName}</Text>
+                      {isCurrent ? (
+                        <StatusBadge status="success" label="THIS DEVICE" size="sm" showDot />
+                      ) : (
+                        <StatusBadge status="neutral" label="ACTIVE" size="sm" showDot={false} />
+                      )}
+                    </View>
+                    <Text style={styles.sessionMeta}>
+                      OS: {session.platform} • Browser: {session.browser}
+                    </Text>
+                    <Text style={styles.sessionTime}>
+                      Active: {new Date(session.lastActive).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {new Date(session.lastActive).toLocaleDateString()}
+                    </Text>
+                  </View>
+
+                  {!isCurrent && (
+                    <Pressable
+                      onPress={() => handleTerminateSession(session.deviceId)}
+                      style={styles.disconnectBtn}
+                      accessibilityLabel="Sign out this device"
+                    >
+                      <Text style={styles.disconnectBtnText}>Sign Out</Text>
+                    </Pressable>
+                  )}
+                </View>
               );
             })}
           </View>
-        </View>
+
+          {deviceSessions.length > 1 && (
+            <Button
+              title="Sign Out of All Other Devices"
+              variant="outline"
+              size="sm"
+              onPress={handleTerminateOtherSessions}
+              style={styles.marginTopSm}
+            />
+          )}
+        </Card>
+
+        {/* ================================================================ */}
+        {/* PERSONA SWITCHER: STRICTLY RESTRICTED TO PLATFORM APP OWNER     */}
+        {/* (Non-owner users have this feature completely removed)           */}
+        {/* ================================================================ */}
+        {isAppOwner && (
+          <View style={styles.switchPersonaSection}>
+            <View style={styles.ownerNoticeBox}>
+              <Text style={styles.ownerNoticeTitle}>
+                👑 Platform App Owner Super-Admin Access
+              </Text>
+              <Text style={styles.ownerNoticeText}>
+                As the platform administrator, you can switch personas below to audit RBAC
+                permissions and verify features for different roles. Regular society residents
+                and presidents cannot access this switcher and must log in with their credentials.
+              </Text>
+            </View>
+
+            <Text style={styles.switchPersonaTitle}>Switch Persona (Owner Privilege):</Text>
+            <View style={styles.demoPersonaGrid}>
+              {MOCK_USERS.map((demo) => {
+                const isCurrent = demo.id === user.id;
+                const isDemoOwner = Boolean(demo.isAppOwner);
+                return (
+                  <Pressable
+                    key={demo.id}
+                    onPress={() => {
+                      loginAsDemoUser(demo);
+                      onNavigateToDashboard?.();
+                    }}
+                    style={[
+                      styles.demoPersonaItem,
+                      isCurrent && styles.demoPersonaItemActive,
+                      isDemoOwner && { borderColor: '#F59E0B' },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.demoPersonaName,
+                        isCurrent && styles.demoPersonaNameActive,
+                        isDemoOwner && { color: '#B45309', fontWeight: 'bold' },
+                      ]}
+                    >
+                      {isDemoOwner ? '👑 ' : ''}
+                      {demo.name}
+                    </Text>
+                    <Text style={styles.demoPersonaRole}>
+                      {demo.roleTitle.split('(')[0].trim()}
+                    </Text>
+                    <Text style={styles.demoPersonaFlat}>
+                      {demo.block} • {demo.flatNumber}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </ScreenContainer>
     );
   }
 
+  // =========================================================================
+  // UNAUTHENTICATED STATE: Credential-Only Login Page
+  // =========================================================================
   return (
     <ScreenContainer maxWidth={520}>
       {/* Brand Header */}
       <View style={styles.header}>
-        <View style={styles.logoPill}>
-          <Text style={styles.logoText}>AS</Text>
-        </View>
-        <Text style={styles.title}>{APP_NAME}</Text>
-        <Text style={styles.subtitle}>{APP_TAGLINE}</Text>
+        <AppLogo size={160} variant="mark" />
       </View>
 
       {/* Login Card */}
       <Card
-        title="Sign In"
-        subtitle="Enter your mobile number or email to access your account"
+        title="Resident & Committee Sign In"
+        subtitle="Sign in with your registered credentials to access your account"
         style={styles.card}
       >
         {/* Error notification banner */}
@@ -229,7 +411,7 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
 
         {/* Identifier Input */}
         <Input
-          label="Email or Mobile Number"
+          label="Email Address or 10-Digit Mobile"
           placeholder="e.g. rahul.owner@apnisociety.com or 9876543210"
           value={identifier}
           onChangeText={(text) => {
@@ -241,13 +423,31 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
           error={fieldErrors.identifier}
           autoCapitalize="none"
           keyboardType="email-address"
+          returnKeyType={password.trim() ? 'go' : 'next'}
+          onSubmitEditing={() => {
+            if (password.trim()) {
+              handleSubmit();
+            } else {
+              passwordInputRef.current?.focus();
+            }
+          }}
+          onKeyPress={(e: any) => {
+            if (e.key === 'Enter' || e.nativeEvent?.key === 'Enter') {
+              if (password.trim()) {
+                handleSubmit();
+              } else {
+                passwordInputRef.current?.focus();
+              }
+            }
+          }}
           required
         />
 
-        {/* Password Input */}
+        {/* Password Input with show/hide toggle */}
         <Input
+          ref={passwordInputRef}
           label="Password"
-          placeholder="Enter your password"
+          placeholder="Enter your account password"
           value={password}
           onChangeText={(text) => {
             setPassword(text);
@@ -257,6 +457,13 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
           }}
           secureTextEntry={!showPassword}
           error={fieldErrors.password}
+          returnKeyType="go"
+          onSubmitEditing={handleSubmit}
+          onKeyPress={(e: any) => {
+            if (e.key === 'Enter' || e.nativeEvent?.key === 'Enter') {
+              handleSubmit();
+            }
+          }}
           required
           rightIcon={
             <Pressable
@@ -271,27 +478,84 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
           }
         />
 
+        {/* Multi-Device Login / Remember Me Option */}
+        <Pressable
+          onPress={() => setRememberMe((prev) => !prev)}
+          style={styles.rememberRow}
+          accessibilityLabel="Keep signed in on this device"
+        >
+          <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
+            {rememberMe && <Text style={styles.checkboxCheck}>✓</Text>}
+          </View>
+          <View style={styles.rememberTextBox}>
+            <Text style={styles.rememberText}>
+              Keep me signed in on this device
+            </Text>
+            <Text style={styles.rememberSubtext}>
+              Multi-Device: Allows concurrent access on your phone, tablet, and PC
+            </Text>
+          </View>
+        </Pressable>
+
         {/* Forgot Password Action */}
         <View style={styles.formRow}>
           <Pressable
-            onPress={() => setForgotPasswordMsg((prev) => !prev)}
+            onPress={() => setShowForgotModal((prev) => !prev)}
             style={styles.linkButton}
           >
-            <Text style={styles.linkText}>Forgot password?</Text>
+            <Text style={styles.linkText}>Forgot your password?</Text>
           </Pressable>
         </View>
 
-        {forgotPasswordMsg && (
-          <View style={styles.infoBanner}>
-            <Text style={styles.infoBannerText}>
-              For the demo, you can click any persona below to log in instantly, or use password: <Text style={styles.bold}>demo1234</Text>
+        {/* Forgot Password Helper Drawer */}
+        {showForgotModal && (
+          <View style={styles.forgotBox}>
+            <Text style={styles.forgotTitle}>Password Assistance</Text>
+            <Text style={styles.forgotDesc}>
+              Enter your registered email or 10-digit mobile number to reset your password or retrieve your initial login credentials.
             </Text>
+            <Input
+              label="Registered Email or Mobile"
+              placeholder="e.g. 9876543210"
+              value={forgotInput}
+              onChangeText={setForgotInput}
+              autoCapitalize="none"
+              returnKeyType="go"
+              onSubmitEditing={handleResetPassword}
+              onKeyPress={(e: any) => {
+                if (e.key === 'Enter' || e.nativeEvent?.key === 'Enter') {
+                  handleResetPassword();
+                }
+              }}
+            />
+            {forgotSuccessMsg && (
+              <View style={styles.infoBanner}>
+                <Text style={styles.infoBannerText}>{forgotSuccessMsg}</Text>
+              </View>
+            )}
+            <View style={styles.forgotBtnRow}>
+              <Button
+                title="Reset Password"
+                variant="primary"
+                size="sm"
+                onPress={handleResetPassword}
+              />
+              <Button
+                title="Cancel"
+                variant="ghost"
+                size="sm"
+                onPress={() => {
+                  setShowForgotModal(false);
+                  setForgotSuccessMsg(null);
+                }}
+              />
+            </View>
           </View>
         )}
 
         {/* Submit Button */}
         <Button
-          title={isLoading ? 'Signing in...' : 'Sign In'}
+          title={isLoading ? 'Verifying credentials...' : 'Sign In to Account'}
           variant="primary"
           size="lg"
           fullWidth
@@ -300,50 +564,11 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
           style={styles.submitBtn}
         />
 
-        {/* Quick Demo Personas (Role & Permission Testing) */}
-        <View style={styles.demoSection}>
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or test with a demo persona</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <Text style={styles.demoInstructions}>
-            Select a resident or committee role to inspect its permissions:
+        {/* Multi-Device Security Guarantee Banner */}
+        <View style={styles.securityNote}>
+          <Text style={styles.securityNoteText}>
+            🔒 <Text style={styles.bold}>Multi-Device Sync:</Text> Your session is persistent and can be logged in simultaneously on your family's smartphones, tablets, and computers.
           </Text>
-
-          <View style={styles.demoGrid}>
-            {MOCK_USERS.map((demo) => {
-              const isOwner = Boolean(demo.isAppOwner);
-              const isPres = demo.roleId === 'role-president';
-              return (
-                <Pressable
-                  key={demo.id}
-                  onPress={() => handleSelectDemoPersona(demo)}
-                  style={[
-                    styles.demoCard,
-                    isOwner && { borderColor: '#F59E0B', borderWidth: 1.5, backgroundColor: '#FFFDF5' },
-                  ]}
-                >
-                  <View style={styles.demoCardTop}>
-                    <Text style={[styles.demoName, isOwner && { color: '#B45309', fontWeight: 'bold' }]}>
-                      {isOwner ? '👑 ' : ''}{demo.name}
-                    </Text>
-                    <StatusBadge
-                      status={isOwner ? 'warning' : isPres ? 'info' : demo.isCommitteeMember ? 'success' : 'neutral'}
-                      label={isOwner ? 'APP OWNER' : isPres ? 'PRESIDENT' : demo.roleTitle.split(' ')[0]}
-                      size="sm"
-                      showDot={false}
-                    />
-                  </View>
-                  <Text style={styles.demoSub}>
-                    {demo.societyName} • {demo.block} • {demo.flatNumber}
-                  </Text>
-                  <Text style={styles.demoEmail}>{demo.email}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
         </View>
       </Card>
     </ScreenContainer>
@@ -355,35 +580,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: spacing.lg,
   },
-  logoPill: {
-    width: 52,
-    height: 52,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.primary[600],
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-    ...shadows.md,
-  },
-  logoText: {
-    color: colors.text.inverse,
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.bold,
-  },
-  title: {
-    fontSize: typography.sizes['3xl'],
-    fontWeight: typography.weights.bold,
-    color: colors.primary[800],
-    letterSpacing: -0.5,
-  },
-  subtitle: {
+  profileSubtitle: {
     fontSize: typography.sizes.sm,
     color: colors.neutral[500],
-    marginTop: 4,
+    marginTop: 2,
     textAlign: 'center',
   },
   card: {
     backgroundColor: colors.surface,
+  },
+  marginTopSm: {
+    marginTop: spacing.sm,
+  },
+  marginTopMd: {
+    marginTop: spacing.md,
   },
   errorBanner: {
     backgroundColor: colors.danger.background,
@@ -398,13 +608,26 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.medium,
   },
+  successBanner: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  successBannerText: {
+    color: '#15803D',
+    fontSize: typography.sizes.xs + 1,
+    fontWeight: typography.weights.medium,
+  },
   infoBanner: {
     backgroundColor: colors.info.background,
     borderColor: colors.info.border,
     borderWidth: 1,
     borderRadius: borderRadius.md,
     padding: spacing.sm,
-    marginBottom: spacing.md,
+    marginVertical: spacing.xs,
   },
   infoBannerText: {
     color: colors.info.text,
@@ -422,10 +645,49 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     fontWeight: typography.weights.semibold,
   },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginVertical: spacing.xs + 2,
+    gap: spacing.xs + 4,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: colors.neutral[400],
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  checkboxActive: {
+    backgroundColor: colors.primary[600],
+    borderColor: colors.primary[600],
+  },
+  checkboxCheck: {
+    color: colors.text.inverse,
+    fontSize: 12,
+    fontWeight: typography.weights.bold,
+  },
+  rememberTextBox: {
+    flex: 1,
+  },
+  rememberText: {
+    fontSize: typography.sizes.sm,
+    color: colors.text.primary,
+    fontWeight: typography.weights.medium,
+  },
+  rememberSubtext: {
+    fontSize: typography.sizes.xs - 1,
+    color: colors.neutral[500],
+    marginTop: 1,
+  },
   formRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   linkButton: {
     paddingVertical: 2,
@@ -438,61 +700,42 @@ const styles = StyleSheet.create({
   submitBtn: {
     marginTop: spacing.xs,
   },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: spacing.lg,
+  securityNote: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    marginTop: spacing.md,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border.default,
-  },
-  dividerText: {
-    marginHorizontal: spacing.sm,
-    color: colors.neutral[400],
+  securityNoteText: {
     fontSize: typography.sizes.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: colors.neutral[600],
+    lineHeight: 18,
   },
-  demoSection: {
-    marginTop: spacing.xs,
-  },
-  demoInstructions: {
-    fontSize: typography.sizes.xs,
-    color: colors.neutral[500],
-    marginBottom: spacing.sm,
-  },
-  demoGrid: {
-    flexDirection: 'column',
-    gap: spacing.xs + 4,
-  },
-  demoCard: {
+  forgotBox: {
     backgroundColor: colors.neutral[50],
     borderColor: colors.border.default,
     borderWidth: 1,
     borderRadius: borderRadius.md,
-    padding: spacing.sm + 2,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.xs,
   },
-  demoCardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  demoName: {
+  forgotTitle: {
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.semibold,
     color: colors.text.primary,
   },
-  demoSub: {
+  forgotDesc: {
     fontSize: typography.sizes.xs,
     color: colors.neutral[600],
+    marginBottom: spacing.xs,
   },
-  demoEmail: {
-    fontSize: typography.sizes.xs - 1,
-    color: colors.neutral[400],
-    marginTop: 2,
+  forgotBtnRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
   },
 
   // Active Session styles
@@ -515,13 +758,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: spacing.md,
   },
+  avatarOwner: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+  },
   avatarText: {
     color: colors.primary[700],
     fontWeight: typography.weights.bold,
     fontSize: typography.sizes.lg,
   },
+  avatarTextOwner: {
+    color: '#B45309',
+  },
   profileDetails: {
     flex: 1,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   profileName: {
     fontSize: typography.sizes.lg,
@@ -604,8 +859,117 @@ const styles = StyleSheet.create({
   sessionActions: {
     marginTop: spacing.sm,
   },
+
+  // Multi-Device section styles
+  multiDeviceBanner: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm + 2,
+    marginBottom: spacing.md,
+  },
+  multiDeviceBannerTitle: {
+    fontSize: typography.sizes.xs + 1,
+    fontWeight: typography.weights.bold,
+    color: '#166534',
+  },
+  multiDeviceBannerDesc: {
+    fontSize: typography.sizes.xs,
+    color: '#15803D',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  sessionsList: {
+    gap: spacing.xs + 2,
+  },
+  sessionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.neutral[50],
+    borderColor: colors.border.light,
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+  },
+  sessionItemCurrent: {
+    borderColor: colors.primary[300],
+    backgroundColor: colors.primary[50],
+  },
+  sessionIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+  },
+  sessionIcon: {
+    fontSize: 18,
+  },
+  sessionDetails: {
+    flex: 1,
+  },
+  sessionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  sessionName: {
+    fontSize: typography.sizes.xs + 1,
+    fontWeight: typography.weights.semibold,
+    color: colors.text.primary,
+  },
+  sessionMeta: {
+    fontSize: typography.sizes.xs - 1,
+    color: colors.neutral[500],
+  },
+  sessionTime: {
+    fontSize: typography.sizes.xs - 2,
+    color: colors.neutral[400],
+    marginTop: 1,
+  },
+  disconnectBtn: {
+    marginLeft: spacing.xs,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.danger.border,
+    backgroundColor: colors.surface,
+  },
+  disconnectBtnText: {
+    fontSize: typography.sizes.xs - 1,
+    color: colors.danger.text,
+    fontWeight: typography.weights.medium,
+  },
+
+  // Owner persona switcher styles
   switchPersonaSection: {
-    marginTop: spacing.lg,
+    marginTop: spacing.xl,
+  },
+  ownerNoticeBox: {
+    backgroundColor: '#FFFDF5',
+    borderColor: '#FDE68A',
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  ownerNoticeTitle: {
+    fontSize: typography.sizes.xs + 1,
+    fontWeight: typography.weights.bold,
+    color: '#B45309',
+    marginBottom: 2,
+  },
+  ownerNoticeText: {
+    fontSize: typography.sizes.xs,
+    color: '#92400E',
+    lineHeight: 18,
   },
   switchPersonaTitle: {
     fontSize: typography.sizes.sm,
@@ -620,7 +984,7 @@ const styles = StyleSheet.create({
   },
   demoPersonaItem: {
     flex: 1,
-    minWidth: 120,
+    minWidth: 130,
     backgroundColor: colors.surface,
     borderColor: colors.border.default,
     borderWidth: 1,
@@ -645,6 +1009,12 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs - 1,
     color: colors.neutral[500],
     marginTop: 2,
+    textAlign: 'center',
+  },
+  demoPersonaFlat: {
+    fontSize: typography.sizes.xs - 2,
+    color: colors.neutral[400],
+    marginTop: 1,
     textAlign: 'center',
   },
   marginBottomSm: {

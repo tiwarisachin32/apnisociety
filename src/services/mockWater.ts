@@ -458,7 +458,7 @@ export function getWaterReadings(flatNumber?: string): WaterMeterReading[] {
 
 export function getWaterSocietySummary(): WaterSocietySummary {
   const readings = getStoredReadings();
-  const currentMonthReadings = readings.filter((r) => r.month === 'September 2026');
+  const currentMonthReadings = (readings || []).filter((r) => r && r.month === 'September 2026');
 
   const totalFlats = 128;
   const recordedCount = currentMonthReadings.filter((r) => r.currentReading > 0).length;
@@ -508,8 +508,10 @@ export async function recordMeterReading(payload: {
   const readings = getStoredReadings();
   const tariff = getStoredTariff();
 
-  const index = readings.findIndex(
+  const index = (readings || []).findIndex(
     (r) =>
+      r &&
+      r.flatNumber &&
       r.flatNumber.toLowerCase() === payload.flatNumber.toLowerCase() &&
       r.month === 'September 2026'
   );

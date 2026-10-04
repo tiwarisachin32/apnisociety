@@ -35,6 +35,7 @@ export interface DashboardScreenProps {
   onNavigateToRoles?: () => void;
   onNavigateToReports?: () => void;
   onNavigateToSettings?: () => void;
+  onNavigateToLogin?: () => void;
 }
 
 export default function DashboardScreen({
@@ -49,6 +50,7 @@ export default function DashboardScreen({
   onNavigateToRoles,
   onNavigateToReports,
   onNavigateToSettings,
+  onNavigateToLogin,
 }: DashboardScreenProps) {
   const { user, loginAsDemoUser, logout, hasPermission } = useAuth();
   const { isMobile, isTablet, isDesktop } = useResponsive();
@@ -72,12 +74,12 @@ export default function DashboardScreen({
       <ScreenContainer maxWidth={600}>
         <Card title="Session Required" subtitle="Please sign in to access the dashboard">
           <Text style={styles.emptySessionText}>
-            No active session detected. Please sign in via the Login module to view your society dashboard.
+            No active session detected. Please sign in with your account credentials to view your society dashboard.
           </Text>
           <Button
-            title="Go to Login"
+            title="Sign In with Credentials"
             variant="primary"
-            onPress={() => loginAsDemoUser(MOCK_USERS[0])}
+            onPress={() => onNavigateToLogin?.()}
             style={styles.marginTopMd}
           />
         </Card>
@@ -256,15 +258,17 @@ export default function DashboardScreen({
             </Text>
           </View>
 
-          {/* Quick Persona Switcher button in header */}
+          {/* Quick Persona Switcher button in header (Strictly App Owner only) */}
           <View style={[styles.headerRight, isMobile && styles.headerRightMobile]}>
-            <Button
-              title="Switch Persona"
-              variant="outline"
-              size="sm"
-              onPress={() => setShowPersonaModal(true)}
-              style={styles.personaBtn}
-            />
+            {Boolean(user?.isAppOwner) && (
+              <Button
+                title="Switch Persona"
+                variant="outline"
+                size="sm"
+                onPress={() => setShowPersonaModal(true)}
+                style={styles.personaBtn}
+              />
+            )}
             <Button
               title="Sign Out"
               variant="ghost"
@@ -302,21 +306,21 @@ export default function DashboardScreen({
         </View>
       )}
 
-      {/* Society Customization & Release Center Banner for Committee/Admin */}
-      {user.isCommitteeMember && onNavigateToSettings && (
+      {/* Platform Multi-Society & App Company Console Banner (App Owner Only) */}
+      {Boolean(user.isAppOwner) && onNavigateToSettings && (
         <Card style={styles.customizeSocietyBanner}>
           <View style={styles.customizeBannerLeft}>
             <View style={styles.customizeBadgeRow}>
-              <Text style={styles.customizeBadge}>⚙️ SOCIETY RELEASE & SETUP</Text>
-              <Text style={styles.customizeStatus}>Production Ready</Text>
+              <Text style={styles.customizeBadge}>🏢 APP COMPANY PLATFORM CONSOLE</Text>
+              <Text style={styles.customizeStatus}>App Running</Text>
             </View>
-            <Text style={styles.customizeTitle}>Customize App for Society Requirements</Text>
+            <Text style={styles.customizeTitle}>Platform Control: Health, Multi-Story & Bugs</Text>
             <Text style={styles.customizeSubtitle}>
-              Configure legal society name, towers & flats, maintenance calculation tariffs, bank/UPI details, and clubhouse booking bylaws.
+              Monitor real-time system logs, manage multi-story towers and society onboarding, and triage bugs reported by societies.
             </Text>
           </View>
           <Button
-            title="Setup & Release Desk →"
+            title="Open Company Console →"
             variant="primary"
             size="md"
             onPress={onNavigateToSettings}
@@ -590,9 +594,9 @@ export default function DashboardScreen({
         </View>
       </View>
 
-      {/* Modal: Quick Persona Switcher */}
+      {/* Modal: Quick Persona Switcher (App Owner Only) */}
       <Modal
-        visible={showPersonaModal}
+        visible={Boolean(user?.isAppOwner && showPersonaModal)}
         transparent
         animationType="fade"
         onRequestClose={() => setShowPersonaModal(false)}

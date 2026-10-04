@@ -11,3 +11,5 @@ export * from './SectionHeader';
 export * from './Modal';
 export * from './TabBar';
 export * from './FileUpload';
+export * from './AppLogo';
+export * from './SocietyLogo';

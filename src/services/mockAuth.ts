@@ -1,5 +1,57 @@
 import { PERMISSIONS } from '../constants/app';
 import { LoginCredentials, User } from '../types/auth';
+import { registerDeviceSession } from './deviceSession';
+
+/**
+ * Pre-configured Default Credentials for system users.
+ * Users can also use "demo1234" for initial account access or update their passwords.
+ */
+export const DEFAULT_USER_CREDENTIALS: Record<string, string> = {
+  'user-app-owner': 'Owner@123',
+  'user-003': 'President@123',
+  'user-001': 'Rahul@123',
+  'user-002': 'Priya@123',
+  'user-004': 'Treasurer@123',
+  'user-005': 'Meera@123',
+};
+
+const CREDENTIALS_KEY = 'apnisociety_user_credentials';
+
+export function getUserPassword(userId: string): string {
+  if (typeof window === 'undefined') return DEFAULT_USER_CREDENTIALS[userId] || 'demo1234';
+  try {
+    const raw = localStorage.getItem(CREDENTIALS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed[userId]) return parsed[userId];
+    }
+  } catch {}
+  return DEFAULT_USER_CREDENTIALS[userId] || 'demo1234';
+}
+
+export function setUserPassword(userId: string, newPassword: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(CREDENTIALS_KEY);
+    const store = raw ? JSON.parse(raw) : {};
+    store[userId] = newPassword;
+    localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(store));
+  } catch {}
+}
+
+export function resetPasswordForIdentifier(identifier: string, newPassword = 'Password@123'): boolean {
+  const trimmed = identifier.trim().toLowerCase();
+  const allUsers = getAllKnownUsers();
+  const matched = allUsers.find(
+    (u) =>
+      u.email.toLowerCase() === trimmed ||
+      u.phone === trimmed ||
+      u.flatNumber.toLowerCase() === trimmed
+  );
+  if (!matched) return false;
+  setUserPassword(matched.id, newPassword);
+  return true;
+}
 
 /**
  * Pre-configured Mock Users
@@ -207,26 +259,68 @@ export const MOCK_USERS: User[] = [
   },
 ];
 
-const STORAGE_KEY = 'apnisociety_user_session';
-
-/**
- * Simulates network authentication with mock database delay.
- */
-export async function authenticateUser(credentials: LoginCredentials): Promise<User> {
-  // Simulate network latency (400ms)
-  await new Promise((resolve) => setTimeout(resolve, 400));
-
-  const trimmed = credentials.identifier.trim().toLowerCase();
-
-  // Find user by email, phone, or flat number
+export function getAllKnownUsers(): User[] {
   let dynamicUsers: User[] = [];
   if (typeof window !== 'undefined') {
     try {
       const customRaw = localStorage.getItem('apnisociety_custom_users');
       if (customRaw) dynamicUsers = JSON.parse(customRaw);
     } catch {}
+
+    // Also include any members added via Society Members directory
+    try {
+      const membersRaw = localStorage.getItem('apnisociety_members_data');
+      if (membersRaw) {
+        const members: any[] = JSON.parse(membersRaw);
+        members.forEach((m) => {
+          if (!MOCK_USERS.some((u) => u.id === m.id) && !dynamicUsers.some((u) => u.id === m.id)) {
+            dynamicUsers.push({
+              id: m.id,
+              name: m.name,
+              email: m.email,
+              phone: m.phone,
+              societyId: 'soc-01',
+              societyName: 'Shanti Heights RWA',
+              societyCode: 'SH-402',
+              block: m.block || 'Tower A',
+              flatNumber: m.flatNumber || '101',
+              roleId: m.committeeRole || (m.residentType === 'tenant' ? 'role-tenant' : 'role-owner'),
+              roleTitle: m.committeeRoleTitle || (m.residentType === 'tenant' ? 'Tenant' : 'Owner (Resident)'),
+              isCommitteeMember: Boolean(m.isCommitteeMember),
+              isAppOwner: false,
+              permissions: m.isCommitteeMember
+                ? MOCK_USERS[1].permissions
+                : MOCK_USERS[2].permissions,
+            });
+          }
+        });
+      }
+    } catch {}
   }
-  const allUsers = [...MOCK_USERS, ...dynamicUsers];
+  return [...MOCK_USERS, ...dynamicUsers];
+}
+
+const STORAGE_KEY = 'apnisociety_user_session';
+
+/**
+ * Authenticates user credentials with password verification and multi-device session registration.
+ */
+export async function authenticateUser(credentials: LoginCredentials): Promise<User> {
+  // Simulate network latency (300ms)
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  const trimmed = credentials.identifier.trim().toLowerCase();
+  const enteredPassword = credentials.password?.trim() || '';
+
+  if (!trimmed) {
+    throw new Error('Please enter your email address or 10-digit mobile number.');
+  }
+
+  if (!enteredPassword) {
+    throw new Error('Password is required to sign in.');
+  }
+
+  const allUsers = getAllKnownUsers();
 
   const matchedUser = allUsers.find(
     (u) =>
@@ -235,54 +329,33 @@ export async function authenticateUser(credentials: LoginCredentials): Promise<U
       u.flatNumber.toLowerCase() === trimmed
   );
 
-  if (matchedUser) {
-    if (typeof window !== 'undefined' && credentials.rememberMe !== false) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(matchedUser));
-      } catch {
-        // Ignore storage errors in private browsing
-      }
-    }
-    return matchedUser;
+  if (!matchedUser) {
+    throw new Error('No account found with this email or mobile number. Please check credentials or contact society office.');
   }
 
-  // If identifier is not in demo users but valid format, construct a guest resident session
-  if (trimmed.includes('@') || /^\d{10}$/.test(trimmed)) {
-    const customUser: User = {
-      id: `user-${Date.now()}`,
-      name: trimmed.includes('@') ? trimmed.split('@')[0] : `Resident ${trimmed.slice(-4)}`,
-      email: trimmed.includes('@') ? trimmed : `${trimmed}@resident.apnisociety.com`,
-      phone: /^\d{10}$/.test(trimmed) ? trimmed : '9876500000',
-      societyId: 'soc-01',
-      societyName: 'Shanti Heights RWA',
-      societyCode: 'SH-402',
-      block: 'Tower A',
-      flatNumber: 'A-101',
-      roleId: 'role-owner',
-      roleTitle: 'Owner (Resident)',
-      isCommitteeMember: false,
-      permissions: [
-        PERMISSIONS.MAINTENANCE_VIEW,
-        PERMISSIONS.MAINTENANCE_PAY,
-        PERMISSIONS.WATER_VIEW,
-        PERMISSIONS.HALL_VIEW_CALENDAR,
-        PERMISSIONS.HALL_BOOK,
-        PERMISSIONS.COMPLAINT_RAISE,
-        PERMISSIONS.MEMBERS_VIEW,
-      ],
-    };
+  // Verify password against stored password, default credential, or demo1234
+  const expectedPassword = getUserPassword(matchedUser.id);
+  const isValidPassword =
+    enteredPassword === expectedPassword ||
+    enteredPassword === 'demo1234' ||
+    (DEFAULT_USER_CREDENTIALS[matchedUser.id] && enteredPassword === DEFAULT_USER_CREDENTIALS[matchedUser.id]);
 
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(customUser));
-      } catch {
-        // Ignore storage errors
-      }
-    }
-    return customUser;
+  if (!isValidPassword) {
+    throw new Error('Incorrect password. Please verify your password or use "Forgot password".');
   }
 
-  throw new Error('Please enter a valid email address or 10-digit mobile number.');
+  // Multi-Device: Register active session on this device
+  registerDeviceSession(matchedUser.id);
+
+  if (typeof window !== 'undefined' && credentials.rememberMe !== false) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(matchedUser));
+    } catch {
+      // Ignore storage errors in private browsing
+    }
+  }
+
+  return matchedUser;
 }
 
 /**
@@ -331,12 +404,13 @@ export function getSavedSession(): User | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const user = JSON.parse(raw) as User;
-      const matched = MOCK_USERS.find((u) => u.id === user.id);
+      const matched = getAllKnownUsers().find((u) => u.id === user.id);
       if (matched) {
         user.permissions = matched.permissions;
         user.roleTitle = matched.roleTitle;
         user.isAppOwner = matched.isAppOwner;
       }
+      registerDeviceSession(user.id);
       return user;
     }
   } catch {

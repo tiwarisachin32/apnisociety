@@ -1176,7 +1176,7 @@ export default function ExpensesScreen() {
                     {user?.societyName || 'Shanti Heights RWA'} ({user?.societyCode || 'SH-402'})
                   </Text>
                   <Text style={styles.voucherRegText}>
-                    Payment Voucher #{selectedVoucherDetail.voucherNumber} • Cycle: {selectedVoucherDetail.month}
+                    Payment Voucher #{selectedVoucherDetail?.voucherNumber || 'PV'} • Cycle: {selectedVoucherDetail?.month || 'Current Cycle'}
                   </Text>
                 </View>
 

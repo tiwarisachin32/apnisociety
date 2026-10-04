@@ -1,15 +1,72 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="64" height="64">
   <defs>
-    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#3B82F6" />
-      <stop offset="100%" stop-color="#1D4ED8" />
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00C4FF" />
+      <stop offset="50%" stop-color="#0284C7" />
+      <stop offset="100%" stop-color="#0369A1" />
+    </linearGradient>
+    <linearGradient id="leafGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#84CC16" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="darkLeafGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#064E3B" />
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#blueGrad)" />
-  <rect x="140" y="210" width="70" height="170" rx="8" fill="#FFFFFF" fill-opacity="0.9" />
-  <rect x="216" y="140" width="80" height="240" rx="8" fill="#FFFFFF" />
-  <path d="M 216,144 L 256,104 L 296,144 Z" fill="#FDE047" />
-  <rect x="306" y="185" width="70" height="195" rx="8" fill="#FFFFFF" fill-opacity="0.9" />
-  <rect x="110" y="375" width="292" height="16" rx="8" fill="#FFFFFF" />
-  <circle cx="256" cy="76" r="16" fill="#FDE047" />
+
+  <!-- Clean background circle -->
+  <circle cx="256" cy="256" r="250" fill="#FFFFFF" />
+
+  <!-- Outer Cyan/Blue Ring -->
+  <circle cx="256" cy="210" r="170" fill="none" stroke="url(#ringGrad)" stroke-width="14" />
+
+  <!-- Modern High Rise Buildings -->
+  <!-- Left Building -->
+  <polygon points="170,165 210,140 210,240 170,240" fill="#CBD5E1" />
+  <rect x="180" y="175" width="10" height="12" fill="#0284C7" rx="1" />
+  <rect x="180" y="195" width="10" height="12" fill="#0284C7" rx="1" />
+  <rect x="180" y="215" width="10" height="12" fill="#0284C7" rx="1" />
+
+  <!-- Center Main Tower -->
+  <polygon points="216,105 256,80 296,105 296,240 216,240" fill="#E2E8F0" />
+  <polygon points="256,80 296,105 296,240 256,240" fill="#94A3B8" />
+  <rect x="230" y="120" width="12" height="15" fill="#0284C7" rx="1" />
+  <rect x="270" y="120" width="12" height="15" fill="#0369A1" rx="1" />
+  <rect x="230" y="145" width="12" height="15" fill="#0284C7" rx="1" />
+  <rect x="270" y="145" width="12" height="15" fill="#0369A1" rx="1" />
+
+  <!-- Right Building -->
+  <polygon points="302,150 342,175 342,240 302,240" fill="#CBD5E1" />
+  <rect x="322" y="185" width="10" height="12" fill="#0369A1" rx="1" />
+  <rect x="322" y="205" width="10" height="12" fill="#0369A1" rx="1" />
+
+  <!-- Residential House Roof -->
+  <polygon points="175,250 256,180 337,250" fill="#FFFFFF" stroke="#0F2C59" stroke-width="8" stroke-linejoin="round" />
+  <rect x="248" y="215" width="7" height="7" fill="#0F2C59" />
+  <rect x="257" y="215" width="7" height="7" fill="#0F2C59" />
+  <rect x="248" y="224" width="7" height="7" fill="#0F2C59" />
+  <rect x="257" y="224" width="7" height="7" fill="#0F2C59" />
+
+  <!-- Three Community Figures (Orange, Blue, Green) -->
+  <!-- Left Figure (Orange) -->
+  <circle cx="210" cy="280" r="14" fill="#F97316" />
+  <path d="M 190,320 C 190,295 230,295 230,320 Z" fill="#F97316" />
+  <path d="M 188,300 L 175,285" stroke="#F97316" stroke-width="6" stroke-linecap="round" />
+
+  <!-- Right Figure (Green) -->
+  <circle cx="302" cy="280" r="14" fill="#16A34A" />
+  <path d="M 282,320 C 282,295 322,295 322,320 Z" fill="#16A34A" />
+  <path d="M 324,300 L 337,285" stroke="#16A34A" stroke-width="6" stroke-linecap="round" />
+
+  <!-- Center Figure (Blue) -->
+  <circle cx="256" cy="265" r="18" fill="#0284C7" />
+  <path d="M 230,320 C 230,285 282,285 282,320 Z" fill="#0284C7" />
+  <path d="M 235,285 L 218,260" stroke="#0284C7" stroke-width="8" stroke-linecap="round" />
+  <path d="M 277,285 L 294,260" stroke="#0284C7" stroke-width="8" stroke-linecap="round" />
+
+  <!-- Embracing Bottom Leaves -->
+  <path d="M 140,280 C 140,370 240,380 256,380 C 210,360 170,330 160,290 Z" fill="url(#leafGrad)" />
+  <path d="M 372,280 C 372,370 272,380 256,380 C 302,360 342,330 352,290 Z" fill="url(#darkLeafGrad)" />
+  <path d="M 170,320 C 220,380 292,380 342,320 C 300,360 212,360 170,320 Z" fill="#059669" />
 </svg>

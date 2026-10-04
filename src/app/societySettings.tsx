@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { ScreenContainer } from '../components/layout/ScreenContainer';
-import { Button, Card, FileUpload, StatusBadge } from '../components/ui';
+import { AppLogo, Button, Card, FileUpload, SocietyLogo, StatusBadge } from '../components/ui';
 import { APP_NAME, PERMISSIONS } from '../constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
@@ -1551,11 +1551,46 @@ export default function SocietySettingsScreen({
                 />
               </View>
 
-              {/* Society Logo Upload */}
+              {/* Society Logo Upload with Platform vs Society Branding Distinction */}
               <View style={styles.formColFull}>
+                <View style={styles.logoDistinctionBanner}>
+                  <View style={styles.logoDistinctionHeader}>
+                    <Text style={styles.logoDistinctionTitle}>
+                      🎨 Platform Logo vs. Internal Society Crest
+                    </Text>
+                  </View>
+                  <Text style={styles.logoDistinctionDesc}>
+                    The <Text style={styles.boldText}>ApniSociety</Text> logo is the global platform branding seen on the login portal and top header. Your housing society can have its own distinct internal crest or monogram for letterheads, resident invoices, and official notices below.
+                  </Text>
+                  <View style={styles.logoDistinctionCompare}>
+                    <View style={styles.logoCompareCard}>
+                      <Text style={styles.logoCompareLabel}>1. App Platform Logo</Text>
+                      <View style={styles.logoCompareBox}>
+                        <AppLogo size={36} variant="horizontal" />
+                      </View>
+                      <Text style={styles.logoCompareSub}>Fixed across ApniSociety</Text>
+                    </View>
+                    <View style={styles.logoCompareCard}>
+                      <Text style={styles.logoCompareLabel}>2. Society Internal Crest</Text>
+                      <View style={styles.logoCompareBox}>
+                        <SocietyLogo
+                          societyName={config.societyName}
+                          societyCode={config.societyCode}
+                          logoUrl={config.logoUrl}
+                          size={36}
+                        />
+                        <Text style={styles.societyCrestPreviewName} numberOfLines={1}>
+                          {config.societyName}
+                        </Text>
+                      </View>
+                      <Text style={styles.logoCompareSub}>Customizable per society</Text>
+                    </View>
+                  </View>
+                </View>
+
                 <FileUpload
-                  label="Official Society Logo / Crest (Optional)"
-                  description="Appears in header, official receipts, and PDF exports"
+                  label="Official Internal Society Logo / Crest (Optional)"
+                  description="Upload your society's custom crest (PNG/JPG) for invoices, receipts, and society headers."
                   accept="image/*"
                   currentFileName={config.logoUrl ? 'Society_Official_Logo.png' : ''}
                   currentFileUrl={config.logoUrl}
@@ -4326,5 +4361,73 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs + 1,
     color: colors.neutral[800],
     flex: 1,
+  },
+  logoDistinctionBanner: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#CBD5E1',
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  logoDistinctionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  logoDistinctionTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: colors.text.primary,
+  },
+  logoDistinctionDesc: {
+    fontSize: typography.sizes.xs,
+    color: colors.neutral[600],
+    lineHeight: 18,
+  },
+  boldText: {
+    fontWeight: typography.weights.bold,
+    color: colors.primary[700],
+  },
+  logoDistinctionCompare: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.xs,
+    flexWrap: 'wrap',
+  },
+  logoCompareCard: {
+    flex: 1,
+    minWidth: 180,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: borderRadius.sm,
+    padding: spacing.sm,
+    alignItems: 'center',
+    gap: 6,
+  },
+  logoCompareLabel: {
+    fontSize: typography.sizes.xs - 1,
+    fontWeight: typography.weights.semibold,
+    color: colors.neutral[500],
+    textTransform: 'uppercase',
+  },
+  logoCompareBox: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  societyCrestPreviewName: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.medium,
+    color: colors.neutral[700],
+    maxWidth: 120,
+  },
+  logoCompareSub: {
+    fontSize: typography.sizes.xs - 2,
+    color: colors.neutral[400],
   },
 });

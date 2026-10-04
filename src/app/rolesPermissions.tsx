@@ -468,8 +468,12 @@ export default function RolesPermissionsScreen({
             </Text>
           </View>
 
-          {/* User Persona Pill & Switcher */}
-          <Pressable onPress={() => setShowPersonaModal(true)} style={styles.userProfilePill}>
+          {/* User Persona Pill */}
+          <Pressable
+            onPress={() => Boolean(user?.isAppOwner) && setShowPersonaModal(true)}
+            style={styles.userProfilePill}
+            accessibilityLabel={user?.isAppOwner ? "Switch Persona" : "User Profile"}
+          >
             <View style={styles.userAvatarMini}>
               <Text style={styles.userAvatarMiniText}>
                 {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
@@ -477,7 +481,9 @@ export default function RolesPermissionsScreen({
             </View>
             <View>
               <Text style={styles.userNameMini}>{user?.name || 'Resident'}</Text>
-              <Text style={styles.userRoleMini}>{user?.roleTitle || 'Owner'} • Switch Persona 🔄</Text>
+              <Text style={styles.userRoleMini}>
+                {user?.roleTitle || 'Owner'}{Boolean(user?.isAppOwner) ? ' • Switch Persona 🔄' : ''}
+              </Text>
             </View>
           </Pressable>
         </View>
@@ -1642,9 +1648,9 @@ export default function RolesPermissionsScreen({
       </Modal>
 
       {/* ========================================================================= */}
-      {/* MODAL 4: PERSONA SWITCHER */}
+      {/* MODAL 4: PERSONA SWITCHER (App Owner Only) */}
       {/* ========================================================================= */}
-      <Modal visible={showPersonaModal} transparent animationType="fade">
+      <Modal visible={Boolean(user?.isAppOwner && showPersonaModal)} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>

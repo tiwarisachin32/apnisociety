@@ -115,7 +115,9 @@ export default function WaterScreen() {
 
   // Logged-in resident flat
   const userFlat = user?.flatNumber || 'B-402';
-  const myReading = readings.find((r) => r.flatNumber.toLowerCase() === userFlat.toLowerCase()) || readings[0];
+  const myReading =
+    readings.find((r) => r && r.flatNumber && r.flatNumber.toLowerCase() === userFlat.toLowerCase()) ||
+    readings[0];
   const history = getHistoricalConsumption(userFlat);
 
   // Filtered readings for meter-reader tab
@@ -312,118 +314,144 @@ export default function WaterScreen() {
       {activeTab === 'my-meter' && canView && (
         <View style={styles.residentViewContainer}>
           {/* Main Meter Hero Card */}
-          <Card
-            title={`Water Bill • ${myReading.month}`}
-            subtitle={`Sub-Meter: ${myReading.meterNumber} • Flat ${myReading.flatNumber}`}
-            action={
-              <StatusBadge
-                status={myReading.status}
-                label={myReading.status.toUpperCase()}
-                size="md"
-              />
-            }
-            style={styles.heroCard}
-          >
-            {/* Top row: Consumption + Amount + Quick Action */}
-            <View style={styles.heroMainRow}>
-              <View style={styles.consumptionBadgeCol}>
-                <Text style={styles.heroMetricLabel}>Monthly Consumption</Text>
-                <View style={styles.consumptionValueRow}>
-                  <Text style={styles.consumptionBigVal}>{myReading.consumptionKL}</Text>
-                  <Text style={styles.consumptionUnit}>kL</Text>
-                </View>
-                <Text style={styles.dailyAverageText}>
-                  ≈ {Math.round((myReading.consumptionKL * 1000) / 30)} Litres / day
-                </Text>
-              </View>
-
-              <View style={styles.readingDialBox}>
-                <View style={styles.dialMetricRow}>
-                  <Text style={styles.dialLabel}>Previous Reading:</Text>
-                  <Text style={styles.dialVal}>{myReading.previousReading} kL</Text>
-                </View>
-                <View style={styles.dialMetricRow}>
-                  <Text style={styles.dialLabel}>Current Reading:</Text>
-                  <Text style={[styles.dialVal, styles.dialValCurrent]}>
-                    {myReading.currentReading} kL
+          {myReading ? (
+            <Card
+              title={`Water Bill • ${myReading?.month || 'Current Cycle'}`}
+              subtitle={`Sub-Meter: ${myReading?.meterNumber || 'WM-SUB'} • Flat ${myReading?.flatNumber || userFlat}`}
+              action={
+                <StatusBadge
+                  status={myReading?.status || 'pending'}
+                  label={(myReading?.status || 'pending').toUpperCase()}
+                  size="md"
+                />
+              }
+              style={styles.heroCard}
+            >
+              {/* Top row: Consumption + Amount + Quick Action */}
+              <View style={styles.heroMainRow}>
+                <View style={styles.consumptionBadgeCol}>
+                  <Text style={styles.heroMetricLabel}>Monthly Consumption</Text>
+                  <View style={styles.consumptionValueRow}>
+                    <Text style={styles.consumptionBigVal}>{myReading?.consumptionKL ?? 0}</Text>
+                    <Text style={styles.consumptionUnit}>kL</Text>
+                  </View>
+                  <Text style={styles.dailyAverageText}>
+                    ≈ {Math.round(((myReading?.consumptionKL ?? 0) * 1000) / 30)} Litres / day
                   </Text>
                 </View>
-                <View style={styles.dialMetricRow}>
-                  <Text style={styles.dialLabel}>Meter Condition:</Text>
-                  <Text style={styles.dialConditionText}>✓ Certified Normal</Text>
+
+                <View style={styles.readingDialBox}>
+                  <View style={styles.dialMetricRow}>
+                    <Text style={styles.dialLabel}>Previous Reading:</Text>
+                    <Text style={styles.dialVal}>{myReading?.previousReading ?? 0} kL</Text>
+                  </View>
+                  <View style={styles.dialMetricRow}>
+                    <Text style={styles.dialLabel}>Current Reading:</Text>
+                    <Text style={[styles.dialVal, styles.dialValCurrent]}>
+                      {myReading?.currentReading ?? 0} kL
+                    </Text>
+                  </View>
+                  <View style={styles.dialMetricRow}>
+                    <Text style={styles.dialLabel}>Meter Condition:</Text>
+                    <Text style={styles.dialConditionText}>✓ Certified Normal</Text>
+                  </View>
+                  <Text style={styles.dialDateSub}>Recorded on {myReading?.recordedAt || 'Pending cycle'}</Text>
                 </View>
-                <Text style={styles.dialDateSub}>Recorded on {myReading.recordedAt}</Text>
+
+                <View style={styles.heroPayCol}>
+                  <Text style={styles.heroAmountLabel}>Total Bill Amount</Text>
+                  <Text style={styles.heroAmountHighlight}>₹{myReading?.totalAmount ?? 0}</Text>
+                  <Text style={styles.heroDueSub}>Due: {myReading?.dueDate || '15th of month'}</Text>
+
+                  {myReading?.status === 'paid' ? (
+                    <Button
+                      title="View Receipt"
+                      variant="outline"
+                      onPress={() => setActiveReceipt(getWaterReceiptForBill(myReading))}
+                      style={styles.heroPayBtn}
+                    />
+                  ) : (
+                    <Button
+                      title={`Pay ₹${myReading?.totalAmount ?? 0} Now`}
+                      variant="primary"
+                      onPress={() => setPaymentModalBill(myReading)}
+                      style={styles.heroPayBtn}
+                    />
+                  )}
+                </View>
               </View>
 
-              <View style={styles.heroPayCol}>
-                <Text style={styles.heroAmountLabel}>Total Bill Amount</Text>
-                <Text style={styles.heroAmountHighlight}>₹{myReading.totalAmount}</Text>
-                <Text style={styles.heroDueSub}>Due: {myReading.dueDate}</Text>
+              {/* Tiered Volumetric Calculation Breakdown */}
+              <View style={styles.slabBreakdownBox}>
+                <View style={styles.slabBreakdownHeader}>
+                  <Text style={styles.breakdownTitle}>Volumetric Slab Calculation</Text>
+                  <Text style={styles.breakdownSub}>
+                    Progressive rates designed to incentivize water conservation
+                  </Text>
+                </View>
 
-                {myReading.status === 'paid' ? (
+                <View style={styles.slabGrid}>
+                  {(myReading?.slabBreakdown || []).map((item, idx) => (
+                    <View key={idx} style={styles.slabRow}>
+                      <View style={styles.slabRowLeft}>
+                        <View style={styles.slabBullet} />
+                        <Text style={styles.slabNameText}>{item.slabName}</Text>
+                        <Text style={styles.slabRatePill}>
+                          {item.kl} kL @ ₹{item.rate}/kL
+                        </Text>
+                      </View>
+                      <Text style={styles.slabAmountVal}>₹{item.amount}</Text>
+                    </View>
+                  ))}
+
+                  <View style={styles.slabRow}>
+                    <View style={styles.slabRowLeft}>
+                      <View style={[styles.slabBullet, styles.bulletFixed]} />
+                      <Text style={styles.slabNameText}>Fixed Meter Maintenance Charge</Text>
+                    </View>
+                    <Text style={styles.slabAmountVal}>₹{myReading?.fixedMeterCharge ?? 50}</Text>
+                  </View>
+
+                  <View style={styles.slabRow}>
+                    <View style={styles.slabRowLeft}>
+                      <View style={[styles.slabBullet, styles.bulletSanitation]} />
+                      <Text style={styles.slabNameText}>Sanitation & Sewage Surcharge (10%)</Text>
+                    </View>
+                    <Text style={styles.slabAmountVal}>₹{myReading?.sanitationCharge ?? 0}</Text>
+                  </View>
+
+                  <View style={[styles.slabRow, styles.slabTotalRow]}>
+                    <Text style={styles.slabTotalLabel}>Total Water Dues</Text>
+                    <Text style={styles.slabTotalAmount}>₹{myReading?.totalAmount ?? 0}</Text>
+                  </View>
+                </View>
+              </View>
+            </Card>
+          ) : (
+            <Card
+              title="Water Meter & Consumption"
+              subtitle={`Flat ${userFlat}`}
+              style={styles.heroCard}
+            >
+              <View style={{ padding: spacing.lg, alignItems: 'center' }}>
+                <Text style={{ fontSize: 36, marginBottom: spacing.sm }}>💧</Text>
+                <Text style={{ fontSize: typography.sizes.lg, fontWeight: 'bold', color: colors.text.primary, marginBottom: 4 }}>
+                  No Active Water Meter Reading
+                </Text>
+                <Text style={{ fontSize: typography.sizes.sm, color: colors.text.secondary, textAlign: 'center', maxWidth: 440, marginBottom: spacing.md, lineHeight: 20 }}>
+                  A water meter reading has not been recorded yet for Flat {userFlat}. Meter readers record readings on the 25th of every month.
+                </Text>
+                {canRecordMeter && (
                   <Button
-                    title="View Receipt"
-                    variant="outline"
-                    onPress={() => setActiveReceipt(getWaterReceiptForBill(myReading))}
-                    style={styles.heroPayBtn}
-                  />
-                ) : (
-                  <Button
-                    title={`Pay ₹${myReading.totalAmount} Now`}
+                    title="Record Meter Reading Now"
                     variant="primary"
-                    onPress={() => setPaymentModalBill(myReading)}
-                    style={styles.heroPayBtn}
+                    size="md"
+                    onPress={() => setActiveTab('meter-reader')}
                   />
                 )}
               </View>
-            </View>
-
-            {/* Tiered Volumetric Calculation Breakdown */}
-            <View style={styles.slabBreakdownBox}>
-              <View style={styles.slabBreakdownHeader}>
-                <Text style={styles.breakdownTitle}>Volumetric Slab Calculation</Text>
-                <Text style={styles.breakdownSub}>
-                  Progressive rates designed to incentivize water conservation
-                </Text>
-              </View>
-
-              <View style={styles.slabGrid}>
-                {myReading.slabBreakdown.map((item, idx) => (
-                  <View key={idx} style={styles.slabRow}>
-                    <View style={styles.slabRowLeft}>
-                      <View style={styles.slabBullet} />
-                      <Text style={styles.slabNameText}>{item.slabName}</Text>
-                      <Text style={styles.slabRatePill}>
-                        {item.kl} kL @ ₹{item.rate}/kL
-                      </Text>
-                    </View>
-                    <Text style={styles.slabAmountVal}>₹{item.amount}</Text>
-                  </View>
-                ))}
-
-                <View style={styles.slabRow}>
-                  <View style={styles.slabRowLeft}>
-                    <View style={[styles.slabBullet, styles.bulletFixed]} />
-                    <Text style={styles.slabNameText}>Fixed Meter Maintenance Charge</Text>
-                  </View>
-                  <Text style={styles.slabAmountVal}>₹{myReading.fixedMeterCharge}</Text>
-                </View>
-
-                <View style={styles.slabRow}>
-                  <View style={styles.slabRowLeft}>
-                    <View style={[styles.slabBullet, styles.bulletSanitation]} />
-                    <Text style={styles.slabNameText}>Sanitation & Sewage Surcharge (10%)</Text>
-                  </View>
-                  <Text style={styles.slabAmountVal}>₹{myReading.sanitationCharge}</Text>
-                </View>
-
-                <View style={[styles.slabRow, styles.slabTotalRow]}>
-                  <Text style={styles.slabTotalLabel}>Total Water Dues</Text>
-                  <Text style={styles.slabTotalAmount}>₹{myReading.totalAmount}</Text>
-                </View>
-              </View>
-            </View>
-          </Card>
+            </Card>
+          )}
 
           {/* Historical Trend & Water Conservation Tips */}
           <View style={[styles.twoColRow, isDesktop ? styles.twoColRowDesktop : styles.twoColRowStack]}>
@@ -440,7 +468,7 @@ export default function WaterScreen() {
                     const barHeightPct = Math.round((h.consumptionKL / maxVal) * 100);
 
                     return (
-                      <View key={h.month} style={styles.chartBarCol}>
+                      <View key={h.month || i} style={styles.chartBarCol}>
                         <Text style={styles.chartBarValueText}>{h.consumptionKL}kL</Text>
                         <View style={styles.chartTrack}>
                           <View
@@ -452,7 +480,7 @@ export default function WaterScreen() {
                           />
                         </View>
                         <Text style={[styles.chartMonthText, isLatest && styles.chartMonthTextActive]}>
-                          {h.month.split(' ')[0]}
+                          {h?.month ? h.month.split(' ')[0] : ''}
                         </Text>
                       </View>
                     );
@@ -1012,7 +1040,7 @@ export default function WaterScreen() {
                   <View>
                     <Text style={styles.modalTitle}>Pay Water Bill</Text>
                     <Text style={styles.modalSubtitle}>
-                      {paymentModalBill.month} • Flat {paymentModalBill.flatNumber}
+                      {paymentModalBill?.month || 'Current Cycle'} • Flat {paymentModalBill?.flatNumber || ''}
                     </Text>
                   </View>
                   <Pressable
