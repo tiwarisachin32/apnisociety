@@ -46,20 +46,30 @@ export const AppLogo: React.FC<AppLogoProps> = ({
 
   // Square container for the logo so it's fully visible and never cut
   const renderMark = () => {
+    const pad = Math.max(1, Math.round(pixelSize * 0.03));
     if (!imageError) {
       return (
         <View
           style={[
             styles.squareContainer,
-            { width: pixelSize, height: pixelSize },
-            style,
+            {
+              width: pixelSize,
+              height: pixelSize,
+              minWidth: pixelSize,
+              minHeight: pixelSize,
+              maxWidth: pixelSize,
+              maxHeight: pixelSize,
+              aspectRatio: 1,
+              flexShrink: 0,
+              padding: pad,
+            },
+            variant === 'mark' ? style : undefined,
           ]}
         >
           <Image
             source={{ uri: OFFICIAL_APNISOCIETY_LOGO_URI }}
             style={[
               styles.image,
-              { width: pixelSize, height: pixelSize },
               imageStyle,
             ]}
             resizeMode="contain"
@@ -78,8 +88,13 @@ export const AppLogo: React.FC<AppLogoProps> = ({
           {
             width: pixelSize,
             height: pixelSize,
+            minWidth: pixelSize,
+            minHeight: pixelSize,
+            aspectRatio: 1,
+            flexShrink: 0,
             borderRadius: borderRadius.md,
           },
+          variant === 'mark' ? (style as ViewStyle) : undefined,
           imageStyle as ViewStyle,
         ]}
       >
@@ -141,7 +156,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
-    overflow: 'hidden',
+    aspectRatio: 1,
+    flexShrink: 0,
+    overflow: 'visible',
   },
   rowContainer: {
     flexDirection: 'row',
@@ -155,8 +172,11 @@ const styles = StyleSheet.create({
   },
   image: {
     backgroundColor: 'transparent',
+    width: '100%',
+    height: '100%',
     maxWidth: '100%',
     maxHeight: '100%',
+    aspectRatio: 1,
   },
   fallbackBadge: {
     backgroundColor: '#EFF6FF',

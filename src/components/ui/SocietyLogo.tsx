@@ -56,7 +56,15 @@ export const SocietyLogo: React.FC<SocietyLogoProps> = ({
         style={[
           styles.container,
           showBadgeBorder && styles.badgeBorder,
-          { width: pixelSize, height: pixelSize, borderRadius: pixelSize / 2 },
+          {
+            width: pixelSize,
+            height: pixelSize,
+            minWidth: pixelSize,
+            minHeight: pixelSize,
+            aspectRatio: 1,
+            flexShrink: 0,
+            borderRadius: pixelSize / 2,
+          },
           style,
         ]}
       >
@@ -86,6 +94,10 @@ export const SocietyLogo: React.FC<SocietyLogoProps> = ({
         {
           width: pixelSize,
           height: pixelSize,
+          minWidth: pixelSize,
+          minHeight: pixelSize,
+          aspectRatio: 1,
+          flexShrink: 0,
           borderRadius: pixelSize * 0.28,
         },
         style,
