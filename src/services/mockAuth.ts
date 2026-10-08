@@ -267,33 +267,39 @@ export function getAllKnownUsers(): User[] {
       if (customRaw) dynamicUsers = JSON.parse(customRaw);
     } catch {}
 
-    // Also include any members added via Society Members directory
+    // Also include any members added via Society Members directory across all societies
     try {
-      const membersRaw = localStorage.getItem('apnisociety_members_data');
-      if (membersRaw) {
-        const members: any[] = JSON.parse(membersRaw);
-        members.forEach((m) => {
-          if (!MOCK_USERS.some((u) => u.id === m.id) && !dynamicUsers.some((u) => u.id === m.id)) {
-            dynamicUsers.push({
-              id: m.id,
-              name: m.name,
-              email: m.email,
-              phone: m.phone,
-              societyId: 'soc-01',
-              societyName: 'Shanti Heights RWA',
-              societyCode: 'SH-402',
-              block: m.block || 'Tower A',
-              flatNumber: m.flatNumber || '101',
-              roleId: m.committeeRole || (m.residentType === 'tenant' ? 'role-tenant' : 'role-owner'),
-              roleTitle: m.committeeRoleTitle || (m.residentType === 'tenant' ? 'Tenant' : 'Owner (Resident)'),
-              isCommitteeMember: Boolean(m.isCommitteeMember),
-              isAppOwner: false,
-              permissions: m.isCommitteeMember
-                ? MOCK_USERS[1].permissions
-                : MOCK_USERS[2].permissions,
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('apnisociety_members_data')) {
+          const membersRaw = localStorage.getItem(k);
+          if (membersRaw) {
+            const members: any[] = JSON.parse(membersRaw);
+            const targetSocId = k === 'apnisociety_members_data' ? 'soc-01' : k.replace('apnisociety_members_data_', '');
+            members.forEach((m) => {
+              if (!MOCK_USERS.some((u) => u.id === m.id) && !dynamicUsers.some((u) => u.id === m.id)) {
+                dynamicUsers.push({
+                  id: m.id,
+                  name: m.name,
+                  email: m.email,
+                  phone: m.phone,
+                  societyId: targetSocId,
+                  societyName: m.societyName || 'Housing Society',
+                  societyCode: m.societyCode || '',
+                  block: m.block || 'Tower A',
+                  flatNumber: m.flatNumber || '101',
+                  roleId: m.committeeRole || (m.residentType === 'tenant' ? 'role-tenant' : 'role-owner'),
+                  roleTitle: m.committeeRoleTitle || (m.residentType === 'tenant' ? 'Tenant' : 'Owner (Resident)'),
+                  isCommitteeMember: Boolean(m.isCommitteeMember),
+                  isAppOwner: false,
+                  permissions: m.isCommitteeMember
+                    ? MOCK_USERS[1].permissions
+                    : MOCK_USERS[2].permissions,
+                });
+              }
             });
           }
-        });
+        }
       }
     } catch {}
   }
@@ -333,11 +339,12 @@ export async function authenticateUser(credentials: LoginCredentials): Promise<U
     throw new Error('No account found with this email or mobile number. Please check credentials or contact society office.');
   }
 
-  // Verify password against stored password, default credential, or demo1234
+  // Verify password against stored password, default credential, demo1234, or President@123
   const expectedPassword = getUserPassword(matchedUser.id);
   const isValidPassword =
     enteredPassword === expectedPassword ||
     enteredPassword === 'demo1234' ||
+    enteredPassword === 'President@123' ||
     (DEFAULT_USER_CREDENTIALS[matchedUser.id] && enteredPassword === DEFAULT_USER_CREDENTIALS[matchedUser.id]);
 
   if (!isValidPassword) {
@@ -350,6 +357,9 @@ export async function authenticateUser(credentials: LoginCredentials): Promise<U
   if (typeof window !== 'undefined' && credentials.rememberMe !== false) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(matchedUser));
+      if (matchedUser.societyId) {
+        localStorage.setItem('apnisociety_active_society_id', matchedUser.societyId);
+      }
     } catch {
       // Ignore storage errors in private browsing
     }

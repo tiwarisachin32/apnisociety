@@ -519,7 +519,25 @@ export default function MaintenanceScreen() {
 
           {/* Flat-wise Ledger Cards */}
           <View style={styles.ledgerList}>
-            {ledgerBills.length === 0 ? (
+            {bills.length === 0 ? (
+              <Card variant="flat" style={{ padding: spacing.xl, alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border.light }}>
+                <Text style={{ fontSize: 36, marginBottom: 8 }}>📑</Text>
+                <Text style={{ fontSize: typography.sizes.base, fontWeight: '700', color: colors.neutral[800], marginBottom: 4 }}>
+                  No Maintenance Invoices Generated Yet
+                </Text>
+                <Text style={{ fontSize: typography.sizes.sm, color: colors.neutral[500], textAlign: 'center', maxWidth: 460, lineHeight: 20, marginBottom: spacing.md }}>
+                  This society was created with a clean database without sample data. All monthly maintenance billing cycles are generated and published directly by the Society Committee.
+                </Text>
+                {canManage && (
+                  <Button
+                    title="+ Generate First Billing Cycle"
+                    variant="primary"
+                    size="sm"
+                    onPress={() => setShowNewCycleModal(true)}
+                  />
+                )}
+              </Card>
+            ) : ledgerBills.length === 0 ? (
               <Card>
                 <Text style={styles.emptySearchText}>
                   No maintenance records matching "{searchQuery}" in {selectedBlock} ({selectedStatus}).

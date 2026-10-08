@@ -613,7 +613,50 @@ export default function WaterScreen() {
 
           {/* Flats Meter Reading List */}
           <View style={styles.meterReadingsList}>
-            {filteredReadings.map((reading) => {
+            {filteredReadings.length === 0 ? (
+              <Card variant="flat" style={{ padding: spacing.xl, alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border.light }}>
+                <Text style={{ fontSize: 36, marginBottom: 8 }}>💧</Text>
+                <Text style={{ fontSize: typography.sizes.base, fontWeight: '700', color: colors.neutral[800], marginBottom: 4 }}>
+                  No Water Meter Readings Logged
+                </Text>
+                <Text style={{ fontSize: typography.sizes.sm, color: colors.neutral[500], textAlign: 'center', maxWidth: 440, lineHeight: 20, marginBottom: spacing.md }}>
+                  The water meter registry for this society is initialized clean without sample data. Meter readings will be recorded by the Society Committee or assigned facility staff.
+                </Text>
+                {canRecordMeter && (
+                  <Button
+                    title="+ Log First Meter Reading"
+                    variant="primary"
+                    size="sm"
+                    onPress={() =>
+                      setRecordingModalReading({
+                        id: `wm-new-${Date.now()}`,
+                        billNumber: `WB-NEW-${Date.now().toString().slice(-4)}`,
+                        flatNumber: 'A-101',
+                        block: 'Tower A',
+                        residentName: 'Resident',
+                        meterNumber: 'WM-001',
+                        month: 'September 2026',
+                        cycleDate: '01 Sep 2026',
+                        previousReading: 0,
+                        currentReading: 0,
+                        consumptionKL: 0,
+                        meterStatus: 'normal',
+                        slabBreakdown: [],
+                        volumetricCharge: 0,
+                        sanitationCharge: 0,
+                        fixedMeterCharge: 50,
+                        totalAmount: 50,
+                        dueDate: '10 Oct 2026',
+                        status: 'pending',
+                        recordedBy: 'Committee Desk',
+                        recordedAt: new Date().toISOString(),
+                      })
+                    }
+                  />
+                )}
+              </Card>
+            ) : (
+              filteredReadings.map((reading) => {
               const hasRecorded = reading.currentReading > 0;
               const isExcessive = reading.consumptionKL >= 30;
 
@@ -681,7 +724,7 @@ export default function WaterScreen() {
                   </View>
                 </View>
               );
-            })}
+            }))}
           </View>
         </View>
       )}

@@ -7,6 +7,8 @@ import {
   RecentActivity,
   SocietyNotice,
 } from '../types/dashboard';
+import { getStorageStatistics, isSocietyCleanData } from './dataManager';
+import { getActiveSocietyId, getSocietyConfig } from './societyConfig';
 
 export const MOCK_NOTICES: SocietyNotice[] = [
   {
@@ -268,74 +270,162 @@ export const MOCK_ACTIVITIES: RecentActivity[] = [
 ];
 
 /**
- * Returns dynamic metrics tailored to the current user's granted permissions.
+ * Returns dynamic notices for the active society.
+ * For clean societies created without mock data, returns clean circulars.
+ */
+export function getSocietyNotices(): SocietyNotice[] {
+  const activeId = getActiveSocietyId();
+  if (isSocietyCleanData(activeId)) {
+    const config = getSocietyConfig();
+    return [
+      {
+        id: `notice-welcome-${activeId}`,
+        title: `🎉 Welcome to ${config.societyName} Management Portal`,
+        content: `The official portal for ${config.societyName} has been initialized without sample data. All resident registrations, maintenance billing cycles, expense vouchers, and amenity bookings will be created and governed directly by the Society Committee.`,
+        date: 'Today',
+        category: 'urgent',
+        author: config.contactEmail.split('@')[0] || 'President',
+        authorRole: 'Committee Desk',
+        isPinned: true,
+      },
+    ];
+  }
+  return MOCK_NOTICES;
+}
+
+/**
+ * Returns dynamic recent activities for the active society.
+ */
+export function getSocietyActivities(): RecentActivity[] {
+  const activeId = getActiveSocietyId();
+  if (isSocietyCleanData(activeId)) {
+    return [];
+  }
+  return MOCK_ACTIVITIES;
+}
+
+/**
+ * Returns dynamic metrics tailored to the current user's granted permissions and active society data.
  */
 export function getDashboardMetrics(user: User): DashboardMetric[] {
   const metrics: DashboardMetric[] = [];
   const permissions = new Set(user.permissions);
+  const activeId = getActiveSocietyId();
+  const isClean = isSocietyCleanData(activeId);
+  const stats = getStorageStatistics(activeId);
 
   // Committee / Management Financial Overview
   if (permissions.has(PERMISSIONS.MAINTENANCE_MANAGE) || permissions.has(PERMISSIONS.EXPENSES_VIEW)) {
-    metrics.push({
-      id: 'metric-society-collection',
-      title: 'Monthly Collection',
-      value: '₹3,42,000',
-      subtitle: '86% collected of ₹3,98,000 target',
-      change: '+4.2% vs last month',
-      changeType: 'positive',
-      status: 'success',
-      requiredPermission: PERMISSIONS.MAINTENANCE_MANAGE,
-      actionLabel: 'View Ledger',
-    });
+    if (isClean && stats.billsCount === 0) {
+      metrics.push({
+        id: 'metric-society-collection',
+        title: 'Monthly Collection',
+        value: '₹0',
+        subtitle: '0 billing cycles • Awaiting Committee generation',
+        change: 'Clean Production Database',
+        changeType: 'neutral',
+        status: 'info',
+        requiredPermission: PERMISSIONS.MAINTENANCE_MANAGE,
+        actionLabel: 'Generate First Cycle',
+      });
+    } else {
+      metrics.push({
+        id: 'metric-society-collection',
+        title: 'Monthly Collection',
+        value: '₹3,42,000',
+        subtitle: '86% collected of ₹3,98,000 target',
+        change: '+4.2% vs last month',
+        changeType: 'positive',
+        status: 'success',
+        requiredPermission: PERMISSIONS.MAINTENANCE_MANAGE,
+        actionLabel: 'View Ledger',
+      });
+    }
   }
 
   // Resident / Owner Maintenance Status
   if (permissions.has(PERMISSIONS.MAINTENANCE_PAY)) {
-    metrics.push({
-      id: 'metric-my-dues',
-      title: 'My Maintenance Due',
-      value: '₹3,850',
-      subtitle: 'Due by 10th October 2026',
-      status: 'pending',
-      actionLabel: 'Pay Now',
-      requiredPermission: PERMISSIONS.MAINTENANCE_PAY,
-    });
+    if (isClean && stats.billsCount === 0) {
+      metrics.push({
+        id: 'metric-my-dues',
+        title: 'My Maintenance Due',
+        value: '₹0',
+        subtitle: 'No pending dues recorded',
+        status: 'success',
+        actionLabel: 'View Invoices',
+        requiredPermission: PERMISSIONS.MAINTENANCE_PAY,
+      });
+    } else {
+      metrics.push({
+        id: 'metric-my-dues',
+        title: 'My Maintenance Due',
+        value: '₹3,850',
+        subtitle: 'Due by 10th October 2026',
+        status: 'pending',
+        actionLabel: 'Pay Now',
+        requiredPermission: PERMISSIONS.MAINTENANCE_PAY,
+      });
+    }
   }
 
   // Committee Pending Approvals
   if (permissions.has(PERMISSIONS.REIMBURSEMENT_APPROVE) || permissions.has(PERMISSIONS.HALL_APPROVE)) {
-    metrics.push({
-      id: 'metric-pending-approvals',
-      title: 'Pending Approvals',
-      value: '5 Items',
-      subtitle: '3 Expense Vouchers • 2 Hall Requests',
-      change: 'Requires Committee Action',
-      changeType: 'negative',
-      status: 'warning',
-      actionLabel: 'Review',
-    });
+    if (isClean) {
+      const pendingCount = stats.claimsCount + stats.bookingsCount;
+      metrics.push({
+        id: 'metric-pending-approvals',
+        title: 'Pending Approvals',
+        value: `${pendingCount} Items`,
+        subtitle: `${stats.claimsCount} Claims • ${stats.bookingsCount} Bookings`,
+        change: pendingCount === 0 ? 'All up to date' : 'Requires Committee Action',
+        changeType: pendingCount === 0 ? 'positive' : 'negative',
+        status: pendingCount === 0 ? 'success' : 'warning',
+        actionLabel: 'Review',
+      });
+    } else {
+      metrics.push({
+        id: 'metric-pending-approvals',
+        title: 'Pending Approvals',
+        value: '5 Items',
+        subtitle: '3 Expense Vouchers • 2 Hall Requests',
+        change: 'Requires Committee Action',
+        changeType: 'negative',
+        status: 'warning',
+        actionLabel: 'Review',
+      });
+    }
   }
 
   // Water Meter & Consumption
   if (permissions.has(PERMISSIONS.WATER_VIEW)) {
     if (permissions.has(PERMISSIONS.WATER_RECORD_METER)) {
-      metrics.push({
-        id: 'metric-meter-status',
-        title: 'Water Meter Progress',
-        value: '118 / 128 Flats',
-        subtitle: '92% recorded for Sep cycle',
-        status: 'info',
-        actionLabel: 'Enter Readings',
-        requiredPermission: PERMISSIONS.WATER_RECORD_METER,
-      });
+      if (isClean && stats.waterReadingsCount === 0) {
+        metrics.push({
+          id: 'metric-meter-status',
+          title: 'Water Meter Progress',
+          value: `0 / ${stats.unitsCount || 120} Flats`,
+          subtitle: 'Readings will be logged by Committee / Staff',
+          status: 'info',
+          actionLabel: 'Enter Readings',
+          requiredPermission: PERMISSIONS.WATER_RECORD_METER,
+        });
+      } else {
+        metrics.push({
+          id: 'metric-meter-status',
+          title: 'Water Meter Progress',
+          value: '118 / 128 Flats',
+          subtitle: '92% recorded for Sep cycle',
+          status: 'info',
+          actionLabel: 'Enter Readings',
+          requiredPermission: PERMISSIONS.WATER_RECORD_METER,
+        });
+      }
     } else {
       metrics.push({
         id: 'metric-my-water',
         title: 'Water Consumption',
-        value: '18.2 kL',
-        subtitle: 'Slab 2 (₹25/kL) • Est. ₹455',
-        change: '-1.4 kL this month',
-        changeType: 'positive',
+        value: isClean ? '0.0 kL' : '18.2 kL',
+        subtitle: isClean ? 'No readings entered yet' : 'Slab 2 (₹25/kL) • Est. ₹455',
         status: 'info',
         actionLabel: 'View History',
         requiredPermission: PERMISSIONS.WATER_VIEW,
@@ -345,21 +435,33 @@ export function getDashboardMetrics(user: User): DashboardMetric[] {
 
   // Complaints / Helpdesk Status
   if (permissions.has(PERMISSIONS.COMPLAINT_RESOLVE) || permissions.has(PERMISSIONS.COMPLAINT_VIEW_ALL)) {
-    metrics.push({
-      id: 'metric-all-complaints',
-      title: 'Open Complaints',
-      value: '6 Tickets',
-      subtitle: '4 Assigned • 2 Pending Triage',
-      status: 'warning',
-      actionLabel: 'Open Desk',
-      requiredPermission: PERMISSIONS.COMPLAINT_RESOLVE,
-    });
+    if (isClean && stats.complaintsCount === 0) {
+      metrics.push({
+        id: 'metric-all-complaints',
+        title: 'Open Complaints',
+        value: '0 Tickets',
+        subtitle: 'Clean state • No issues logged yet',
+        status: 'success',
+        actionLabel: 'Open Desk',
+        requiredPermission: PERMISSIONS.COMPLAINT_RESOLVE,
+      });
+    } else {
+      metrics.push({
+        id: 'metric-all-complaints',
+        title: 'Open Complaints',
+        value: '6 Tickets',
+        subtitle: '4 Assigned • 2 Pending Triage',
+        status: 'warning',
+        actionLabel: 'Open Desk',
+        requiredPermission: PERMISSIONS.COMPLAINT_RESOLVE,
+      });
+    }
   } else if (permissions.has(PERMISSIONS.COMPLAINT_RAISE)) {
     metrics.push({
       id: 'metric-my-complaint',
       title: 'My Service Requests',
-      value: '1 Active',
-      subtitle: 'Lift Sensor Ticket #TK-1082',
+      value: isClean ? '0 Active' : '1 Active',
+      subtitle: isClean ? 'No complaints logged' : 'Lift Sensor Ticket #TK-1082',
       status: 'info',
       actionLabel: 'Track Ticket',
       requiredPermission: PERMISSIONS.COMPLAINT_RAISE,
@@ -372,7 +474,7 @@ export function getDashboardMetrics(user: User): DashboardMetric[] {
       id: 'metric-hall-slot',
       title: 'Community Hall',
       value: 'Available',
-      subtitle: 'Next open weekend: 17th - 18th Oct',
+      subtitle: 'Open for resident bookings',
       status: 'success',
       actionLabel: 'Book Slot',
       requiredPermission: PERMISSIONS.HALL_BOOK,

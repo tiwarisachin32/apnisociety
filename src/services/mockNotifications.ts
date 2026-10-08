@@ -7,7 +7,8 @@ import {
   TargetAudience,
   UserNotificationPreferences,
 } from '../types/notifications';
-import { isRealDataMode } from './dataManager';
+import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
+import { getActiveSocietyId } from './societyConfig';
 
 const STORAGE_KEY_NOTIFICATIONS = 'apnisociety_notifications_v1';
 const STORAGE_KEY_PREFERENCES = 'apnisociety_user_notif_prefs_v1';
@@ -161,19 +162,23 @@ let inMemoryNotifications = [...INITIAL_NOTIFICATIONS];
 function getStoredNotifications(): SocietyNotification[] {
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_NOTIFICATIONS);
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_NOTIFICATIONS, activeId);
+      const stored = localStorage.getItem(storageKey);
       if (stored !== null) return JSON.parse(stored);
-      if (isRealDataMode()) return [];
+      if (isSocietyCleanData(activeId)) return [];
     } catch {}
   }
-  return isRealDataMode() ? [] : inMemoryNotifications;
+  return isSocietyCleanData(getActiveSocietyId()) ? [] : inMemoryNotifications;
 }
 
 function saveNotifications(notifs: SocietyNotification[]): void {
   inMemoryNotifications = notifs;
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem(STORAGE_KEY_NOTIFICATIONS, JSON.stringify(notifs));
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_NOTIFICATIONS, activeId);
+      localStorage.setItem(storageKey, JSON.stringify(notifs));
     } catch {}
   }
 }

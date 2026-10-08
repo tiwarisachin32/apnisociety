@@ -4,7 +4,9 @@ import {
   MaintenanceSummary,
   NewBillingCyclePayload,
 } from '../types/maintenance';
-import { isRealDataMode } from './dataManager';
+import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
+import { getActiveSocietyId } from './societyConfig';
+import { getStoredMembers, getStoredUnits } from './mockMembers';
 
 const STORAGE_KEY_BILLS = 'apnisociety_maintenance_bills';
 
@@ -291,23 +293,27 @@ let inMemoryBills = [...INITIAL_MAINTENANCE_BILLS];
 function getStoredBills(): MaintenanceBill[] {
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_BILLS);
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_BILLS, activeId);
+      const stored = localStorage.getItem(storageKey);
       if (stored !== null) {
         return JSON.parse(stored);
       }
-      if (isRealDataMode()) return [];
+      if (isSocietyCleanData(activeId)) return [];
     } catch {
       // fallback
     }
   }
-  return isRealDataMode() ? [] : inMemoryBills;
+  return isSocietyCleanData(getActiveSocietyId()) ? [] : inMemoryBills;
 }
 
 function saveBills(bills: MaintenanceBill[]): void {
   inMemoryBills = bills;
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem(STORAGE_KEY_BILLS, JSON.stringify(bills));
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_BILLS, activeId);
+      localStorage.setItem(storageKey, JSON.stringify(bills));
     } catch {
       // fallback
     }
@@ -503,19 +509,44 @@ export async function generateNewBillingCycle(payload: NewBillingCyclePayload): 
     payload.securityHousekeeping +
     payload.parkingFee;
 
-  const sampleFlats = [
-    { flat: 'B-402', block: 'Tower B', name: 'Rahul Sharma' },
-    { flat: 'A-101', block: 'Tower A', name: 'Vikas Aggarwal' },
-    { flat: 'A-201', block: 'Tower A', name: 'Priya Patel (Tenant)' },
-    { flat: 'B-104', block: 'Tower B', name: 'Amit Saxena' },
-    { flat: 'C-101', block: 'Tower C', name: 'Col. S. K. Verma' },
-    { flat: 'D-302', block: 'Tower D', name: 'Meera Joshi' },
-    { flat: 'C-204', block: 'Tower C', name: 'Manoj Bajpayee' },
-    { flat: 'D-105', block: 'Tower D', name: 'Kunal Kapoor' },
-  ];
+  const activeId = getActiveSocietyId();
+  const isClean = isSocietyCleanData(activeId);
+  const units = getStoredUnits();
+  const members = getStoredMembers();
+
+  let flatsToBill: { flat: string; block: string; name: string }[] = [];
+
+  if (units.length > 0) {
+    // Generate for society's actual configured units
+    flatsToBill = units.map((u) => {
+      const assignedMember = members.find(
+        (m) => m.flatNumber.toLowerCase() === u.flatNumber.toLowerCase()
+      );
+      return {
+        flat: u.flatNumber,
+        block: u.block,
+        name:
+          assignedMember?.name ||
+          u.primaryResidentName ||
+          u.ownerName ||
+          `Resident (${u.flatNumber})`,
+      };
+    });
+  } else if (!isClean) {
+    flatsToBill = [
+      { flat: 'B-402', block: 'Tower B', name: 'Rahul Sharma' },
+      { flat: 'A-101', block: 'Tower A', name: 'Vikas Aggarwal' },
+      { flat: 'A-201', block: 'Tower A', name: 'Priya Patel (Tenant)' },
+      { flat: 'B-104', block: 'Tower B', name: 'Amit Saxena' },
+      { flat: 'C-101', block: 'Tower C', name: 'Col. S. K. Verma' },
+      { flat: 'D-302', block: 'Tower D', name: 'Meera Joshi' },
+      { flat: 'C-204', block: 'Tower C', name: 'Manoj Bajpayee' },
+      { flat: 'D-105', block: 'Tower D', name: 'Kunal Kapoor' },
+    ];
+  }
 
   let addedCount = 0;
-  sampleFlats.forEach((f, idx) => {
+  flatsToBill.forEach((f, idx) => {
     const billId = `bill-${f.flat.toLowerCase()}-${payload.month.replace(/\s+/g, '').toLowerCase()}`;
     const exists = bills.some((b) => b.id === billId);
     if (!exists) {
@@ -542,5 +573,5 @@ export async function generateNewBillingCycle(payload: NewBillingCyclePayload): 
   });
 
   saveBills(bills);
-  return addedCount || sampleFlats.length;
+  return addedCount || flatsToBill.length;
 }

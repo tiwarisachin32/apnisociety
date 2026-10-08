@@ -11,7 +11,9 @@ import {
   ResolveTicketPayload,
   SocietyStaff,
 } from '../types/complaints';
-import { isRealDataMode } from './dataManager';
+import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
+import { getActiveSocietyId } from './societyConfig';
+import { getStoredStaff } from './mockMembers';
 
 const STORAGE_KEY_COMPLAINTS = 'apnisociety_complaints_v1';
 
@@ -344,19 +346,23 @@ let inMemoryComplaints = [...INITIAL_COMPLAINTS];
 function getStoredComplaints(): ComplaintTicket[] {
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_COMPLAINTS);
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_COMPLAINTS, activeId);
+      const stored = localStorage.getItem(storageKey);
       if (stored !== null) return JSON.parse(stored);
-      if (isRealDataMode()) return [];
+      if (isSocietyCleanData(activeId)) return [];
     } catch {}
   }
-  return isRealDataMode() ? [] : inMemoryComplaints;
+  return isSocietyCleanData(getActiveSocietyId()) ? [] : inMemoryComplaints;
 }
 
 function saveComplaints(complaints: ComplaintTicket[]): void {
   inMemoryComplaints = complaints;
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem(STORAGE_KEY_COMPLAINTS, JSON.stringify(complaints));
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_COMPLAINTS, activeId);
+      localStorage.setItem(storageKey, JSON.stringify(complaints));
     } catch {}
   }
 }
@@ -370,6 +376,22 @@ export function getUserComplaints(userId: string): ComplaintTicket[] {
 }
 
 export function getAvailableStaff(): SocietyStaff[] {
+  if (isSocietyCleanData(getActiveSocietyId())) {
+    try {
+      const stored = getStoredStaff();
+      if (stored && stored.length > 0) {
+        return stored.map((s) => ({
+          id: s.id,
+          name: s.name,
+          role: s.categoryTitle || 'Facility Technician',
+          phone: s.phone,
+          category: (s.category as any) || 'housekeeping',
+          isAvailable: true,
+        }));
+      }
+    } catch {}
+    return [];
+  }
   return SOCIETY_STAFF_MEMBERS;
 }
 

@@ -16,8 +16,8 @@ import { useResponsive } from '../hooks/useResponsive';
 import {
   getAvailableQuickActions,
   getDashboardMetrics,
-  MOCK_ACTIVITIES,
-  MOCK_NOTICES,
+  getSocietyActivities,
+  getSocietyNotices,
 } from '../services/mockDashboard';
 import { getAllNotifications } from '../services/mockNotifications';
 import { MOCK_USERS } from '../services/mockAuth';
@@ -492,11 +492,11 @@ export default function DashboardScreen({
             title="Notice Board & Circulars"
             subtitle="Official announcements from the RWA Managing Committee"
             action={
-              <StatusBadge status="info" label={`${MOCK_NOTICES.length} Active`} size="sm" />
+              <StatusBadge status="info" label={`${getSocietyNotices().length} Active`} size="sm" />
             }
           >
             <View style={styles.noticesList}>
-              {MOCK_NOTICES.map((notice) => (
+              {getSocietyNotices().map((notice) => (
                 <Pressable
                   key={notice.id}
                   onPress={() => setActiveNotice(notice)}
@@ -561,12 +561,12 @@ export default function DashboardScreen({
             subtitle="Latest transactions, bookings & service tickets"
           >
             <View style={styles.activityList}>
-              {MOCK_ACTIVITIES.map((activity, index) => (
+              {getSocietyActivities().map((activity, index) => (
                 <View
                   key={activity.id}
                   style={[
                     styles.activityItem,
-                    index === MOCK_ACTIVITIES.length - 1 && styles.activityItemLast,
+                    index === getSocietyActivities().length - 1 && styles.activityItemLast,
                   ]}
                 >
                   <View style={styles.activityLeft}>

@@ -11,6 +11,7 @@ import {
   SocietyPresetType,
   SocietyTowerConfig,
 } from '../types/societyConfig';
+import { initNewSocietyDatabase } from './dataManager';
 
 const STORAGE_KEY = 'apnisociety_custom_config_v1';
 const CONFIG_CHANGE_EVENT = 'apnisociety_config_updated';
@@ -310,8 +311,29 @@ export const SOCIETY_PRESETS: Record<SocietyPresetType, { title: string; subtitl
 export function getSocietyConfig(): SocietyConfig {
   if (typeof window === 'undefined') return DEFAULT_SOCIETY_CONFIG;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_SOCIETY_CONFIG;
+    const activeId = getActiveSocietyId();
+    let raw = localStorage.getItem(`apnisociety_custom_config_${activeId}`);
+    if (!raw && activeId === 'soc-01') {
+      raw = localStorage.getItem(STORAGE_KEY);
+    }
+    if (!raw) {
+      const allSoc = getAllSocieties();
+      const target = allSoc.find((s) => s.id === activeId);
+      if (target) {
+        return {
+          ...DEFAULT_SOCIETY_CONFIG,
+          id: target.id,
+          societyName: target.name,
+          societyCode: target.code,
+          registrationNumber: target.registrationNumber || '',
+          city: target.city,
+          state: target.state,
+          totalUnitsCount: target.totalUnits,
+          isCleanProduction: true,
+        };
+      }
+      return DEFAULT_SOCIETY_CONFIG;
+    }
     const parsed = JSON.parse(raw);
     return {
       ...DEFAULT_SOCIETY_CONFIG,
@@ -333,7 +355,8 @@ export function getSocietyConfig(): SocietyConfig {
         ...(parsed.modules || {}),
       },
       towers: Array.isArray(parsed.towers) && parsed.towers.length > 0 ? parsed.towers : DEFAULT_TOWERS,
-      facilities: Array.isArray(parsed.facilities) && parsed.facilities.length > 0 ? parsed.facilities : DEFAULT_FACILITIES,
+      facilities:
+        Array.isArray(parsed.facilities) && parsed.facilities.length > 0 ? parsed.facilities : DEFAULT_FACILITIES,
     };
   } catch {
     return DEFAULT_SOCIETY_CONFIG;
@@ -572,6 +595,14 @@ export function saveAllSocieties(societies: SocietyItem[]): void {
 export function getActiveSocietyId(): string {
   if (typeof window === 'undefined') return 'soc-01';
   try {
+    const rawUser = localStorage.getItem('apnisociety_user_session');
+    if (rawUser) {
+      const user = JSON.parse(rawUser);
+      // Non-owner users are strictly tied to their own society
+      if (user.societyId && !user.isAppOwner) {
+        return user.societyId;
+      }
+    }
     return localStorage.getItem(ACTIVE_SOCIETY_ID_KEY) || 'soc-01';
   } catch {
     return 'soc-01';
@@ -604,6 +635,7 @@ export function createSociety(payload: CreateSocietyPayload): {
     presidentPhone: payload.presidentPhone.trim(),
     createdAt: new Date().toISOString(),
     status: 'active',
+    isCleanProduction: true,
   };
 
   // 2. Generate towers based on towersCount
@@ -645,6 +677,7 @@ export function createSociety(payload: CreateSocietyPayload): {
       ...DEFAULT_SOCIETY_CONFIG.maintenance,
       baseMonthlyRate: Number(payload.baseMonthlyRate) || 3000,
     },
+    isCleanProduction: true,
     customizedAt: new Date().toISOString(),
   };
 
@@ -705,6 +738,10 @@ export function createSociety(payload: CreateSocietyPayload): {
       let customUsers = customRaw ? JSON.parse(customRaw) : [];
       customUsers = [presidentUser, ...customUsers.filter((u: any) => u.id !== presidentUser.id)];
       localStorage.setItem('apnisociety_custom_users', JSON.stringify(customUsers));
+
+      // CRITICAL: Initialize society database WITHOUT mock/dummy data.
+      // All subsequent entries will be performed by the society committee!
+      initNewSocietyDatabase(newSocietyItem, newConfig, presidentUser);
     } catch {}
   }
 
@@ -740,9 +777,12 @@ export function switchActiveSociety(societyId: string): SocietyConfig {
           state: target.state,
           registrationNumber: target.registrationNumber || '',
           totalUnitsCount: target.totalUnits,
+          isCleanProduction: true,
         };
       }
       saveSocietyConfig(targetConfig);
+      // Dispatch data reset so that modules re-fetch for the switched society
+      window.dispatchEvent(new CustomEvent('apnisociety_data_reset', { detail: { societyId, mode: 'real' } }));
     } catch {}
   }
 

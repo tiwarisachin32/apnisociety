@@ -6,7 +6,8 @@ import {
   ReimbursementClaim,
   SocietyExpense,
 } from '../types/expenses';
-import { isRealDataMode } from './dataManager';
+import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
+import { getActiveSocietyId, getSocietyConfig } from './societyConfig';
 
 const STORAGE_KEY_EXPENSES = 'apnisociety_expenses_data';
 const STORAGE_KEY_CLAIMS = 'apnisociety_reimbursement_claims';
@@ -225,19 +226,23 @@ let inMemoryClaims = [...INITIAL_REIMBURSEMENT_CLAIMS];
 export function getStoredExpenses(): SocietyExpense[] {
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_EXPENSES);
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_EXPENSES, activeId);
+      const stored = localStorage.getItem(storageKey);
       if (stored !== null) return JSON.parse(stored);
-      if (isRealDataMode()) return [];
+      if (isSocietyCleanData(activeId)) return [];
     } catch {}
   }
-  return isRealDataMode() ? [] : inMemoryExpenses;
+  return isSocietyCleanData(getActiveSocietyId()) ? [] : inMemoryExpenses;
 }
 
 function saveExpenses(expenses: SocietyExpense[]): void {
   inMemoryExpenses = expenses;
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem(STORAGE_KEY_EXPENSES, JSON.stringify(expenses));
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_EXPENSES, activeId);
+      localStorage.setItem(storageKey, JSON.stringify(expenses));
     } catch {}
   }
 }
@@ -245,19 +250,23 @@ function saveExpenses(expenses: SocietyExpense[]): void {
 function getStoredClaims(): ReimbursementClaim[] {
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_CLAIMS);
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_CLAIMS, activeId);
+      const stored = localStorage.getItem(storageKey);
       if (stored !== null) return JSON.parse(stored);
-      if (isRealDataMode()) return [];
+      if (isSocietyCleanData(activeId)) return [];
     } catch {}
   }
-  return isRealDataMode() ? [] : inMemoryClaims;
+  return isSocietyCleanData(getActiveSocietyId()) ? [] : inMemoryClaims;
 }
 
 function saveClaims(claims: ReimbursementClaim[]): void {
   inMemoryClaims = claims;
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem(STORAGE_KEY_CLAIMS, JSON.stringify(claims));
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_CLAIMS, activeId);
+      localStorage.setItem(storageKey, JSON.stringify(claims));
     } catch {}
   }
 }
@@ -273,10 +282,15 @@ export function getReimbursementClaims(claimantId?: string): ReimbursementClaim[
 }
 
 export function getExpenseBudgetSummary(): ExpenseBudgetSummary {
+  const activeId = getActiveSocietyId();
+  const isClean = isSocietyCleanData(activeId);
   const expenses = getStoredExpenses();
   const claims = getStoredClaims();
+  const cfg = getSocietyConfig();
 
-  const totalBudgetMonthly = 425000; // Monthly allocated society operating budget
+  const totalBudgetMonthly = isClean
+    ? Math.max(50000, (cfg.maintenance.baseMonthlyRate || 3000) * (cfg.totalUnitsCount || 100))
+    : 425000;
   let totalSpent = 0;
 
   const categoryTotals: Record<ExpenseCategory, number> = {
@@ -304,56 +318,56 @@ export function getExpenseBudgetSummary(): ExpenseBudgetSummary {
     {
       category: 'security' as ExpenseCategory,
       label: 'Security & Gate Guarding',
-      allocated: 120000,
+      allocated: Math.round(totalBudgetMonthly * 0.28),
       spent: categoryTotals.security,
       color: '#2563eb', // Blue
     },
     {
       category: 'electricity' as ExpenseCategory,
       label: 'Common Area Electricity',
-      allocated: 90000,
+      allocated: Math.round(totalBudgetMonthly * 0.21),
       spent: categoryTotals.electricity,
       color: '#eab308', // Amber
     },
     {
       category: 'housekeeping' as ExpenseCategory,
       label: 'Housekeeping & Waste',
-      allocated: 75000,
+      allocated: Math.round(totalBudgetMonthly * 0.18),
       spent: categoryTotals.housekeeping,
       color: '#10b981', // Emerald
     },
     {
       category: 'repairs_maintenance' as ExpenseCategory,
       label: 'Lift & Civil Repairs',
-      allocated: 50000,
+      allocated: Math.round(totalBudgetMonthly * 0.12),
       spent: categoryTotals.repairs_maintenance,
       color: '#8b5cf6', // Violet
     },
     {
       category: 'water_tanker' as ExpenseCategory,
       label: 'Water Tanker Supply',
-      allocated: 35000,
+      allocated: Math.round(totalBudgetMonthly * 0.08),
       spent: categoryTotals.water_tanker,
       color: '#06b6d4', // Cyan
     },
     {
       category: 'diesel_genset' as ExpenseCategory,
       label: 'Diesel Generator Backup',
-      allocated: 30000,
+      allocated: Math.round(totalBudgetMonthly * 0.07),
       spent: categoryTotals.diesel_genset,
       color: '#f97316', // Orange
     },
     {
       category: 'gardening' as ExpenseCategory,
       label: 'Gardening & Landscape',
-      allocated: 15000,
+      allocated: Math.round(totalBudgetMonthly * 0.04),
       spent: categoryTotals.gardening,
       color: '#84cc16', // Lime
     },
     {
       category: 'administrative' as ExpenseCategory,
       label: 'Office & AGM Stationery',
-      allocated: 10000,
+      allocated: Math.round(totalBudgetMonthly * 0.02),
       spent: categoryTotals.administrative,
       color: '#64748b', // Slate
     },

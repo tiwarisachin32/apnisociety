@@ -85,6 +85,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (typeof window !== 'undefined') {
         try {
           localStorage.setItem('apnisociety_user_session', JSON.stringify(targetUser));
+          if (targetUser.societyId) {
+            localStorage.setItem('apnisociety_active_society_id', targetUser.societyId);
+          }
         } catch {
           // Ignore
         }

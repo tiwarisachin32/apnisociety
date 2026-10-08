@@ -460,12 +460,31 @@ export default function ExpensesScreen() {
 
           {/* Expense Vouchers Cards */}
           <View style={styles.vouchersList}>
-            {filteredExpenses.map((exp) => (
-              <Pressable
-                key={exp.id}
-                onPress={() => setSelectedVoucherDetail(exp)}
-                style={styles.voucherCard}
-              >
+            {filteredExpenses.length === 0 ? (
+              <Card variant="flat" style={{ padding: spacing.xl, alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border.light }}>
+                <Text style={{ fontSize: 36, marginBottom: 8 }}>🧾</Text>
+                <Text style={{ fontSize: typography.sizes.base, fontWeight: '700', color: colors.neutral[800], marginBottom: 4 }}>
+                  No Expense Vouchers Recorded
+                </Text>
+                <Text style={{ fontSize: typography.sizes.sm, color: colors.neutral[500], textAlign: 'center', maxWidth: 440, lineHeight: 20, marginBottom: spacing.md }}>
+                  This society database was initialized without sample data. Committee members can record vendor bills, maintenance payments, and operational expenses using "+ Add Expense Voucher".
+                </Text>
+                {canManageExpenses && (
+                  <Button
+                    title="+ Add First Expense Voucher"
+                    variant="primary"
+                    size="sm"
+                    onPress={() => setShowAddExpenseModal(true)}
+                  />
+                )}
+              </Card>
+            ) : (
+              filteredExpenses.map((exp) => (
+                <Pressable
+                  key={exp.id}
+                  onPress={() => setSelectedVoucherDetail(exp)}
+                  style={styles.voucherCard}
+                >
                 <View style={styles.voucherTop}>
                   <View style={styles.voucherTitleCol}>
                     <View style={styles.voucherMetaBadgeRow}>
@@ -507,7 +526,7 @@ export default function ExpensesScreen() {
                   </View>
                 </View>
               </Pressable>
-            ))}
+            )))}
           </View>
         </View>
       )}

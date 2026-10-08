@@ -76,9 +76,34 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "Publication timestamp" }
       },
       "required": ["id", "title", "content", "priority", "sender"]
+    },
+    "Society": {
+      "title": "Society",
+      "description": "Housing society registration and governance configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique Society ID" },
+        "name": { "type": "string", "description": "Official Society Name", "maxLength": 150 },
+        "code": { "type": "string", "description": "Unique Society Code", "maxLength": 20 },
+        "registrationNumber": { "type": "string", "description": "Legal Registration Number", "maxLength": 50 },
+        "city": { "type": "string", "description": "City", "maxLength": 50 },
+        "state": { "type": "string", "description": "State", "maxLength": 50 },
+        "totalUnits": { "type": "number", "description": "Total units in society" },
+        "presidentName": { "type": "string", "description": "President Full Name", "maxLength": 100 },
+        "presidentEmail": { "type": "string", "description": "President Email Address", "maxLength": 120 },
+        "presidentPhone": { "type": "string", "description": "President Mobile Number", "maxLength": 20 },
+        "isCleanProduction": { "type": "boolean", "description": "True if database was created clean without mock data" },
+        "status": { "type": "string", "enum": ["active", "pending_setup", "archived"], "description": "Society status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["id", "name", "code", "presidentName", "presidentEmail", "presidentPhone"]
     }
   },
   "firestore": {
+    "/societies/{societyId}": {
+      "schema": "Society",
+      "description": "Registered housing societies on the platform"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "Profiles for registered society residents and staff"

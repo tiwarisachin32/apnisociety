@@ -6,7 +6,8 @@ import {
   SocietyUnit,
   VehicleDetail,
 } from '../types/members';
-import { isRealDataMode } from './dataManager';
+import { generateRealSocietyUnits, getSocietyStorageKey, isSocietyCleanData } from './dataManager';
+import { getActiveSocietyId, getSocietyConfig } from './societyConfig';
 
 const STORAGE_MEMBERS_KEY = 'apnisociety_members_data';
 const STORAGE_STAFF_KEY = 'apnisociety_staff_data';
@@ -864,61 +865,120 @@ export const INITIAL_UNITS: SocietyUnit[] = [
 export function getStoredMembers(): SocietyMember[] {
   if (typeof window === 'undefined') return INITIAL_MEMBERS;
   try {
-    const raw = localStorage.getItem(STORAGE_MEMBERS_KEY);
+    const activeId = getActiveSocietyId();
+    const key = getSocietyStorageKey(STORAGE_MEMBERS_KEY, activeId);
+    const raw = localStorage.getItem(key);
     if (!raw) {
-      if (isRealDataMode()) return [];
-      localStorage.setItem(STORAGE_MEMBERS_KEY, JSON.stringify(INITIAL_MEMBERS));
+      if (isSocietyCleanData(activeId)) {
+        // Return the onboarded president if exists in custom users
+        const customRaw = localStorage.getItem('apnisociety_custom_users');
+        if (customRaw) {
+          const customUsers = JSON.parse(customRaw);
+          const pres = customUsers.find((u: any) => u.societyId === activeId);
+          if (pres) {
+            const presMember: SocietyMember = {
+              id: pres.id,
+              name: pres.name,
+              email: pres.email,
+              phone: pres.phone,
+              flatNumber: pres.flatNumber || 'A-101',
+              block: pres.block || 'Tower A',
+              intercomNumber: '1001',
+              parkingSlots: ['P-01'],
+              residentType: 'committee',
+              isCommitteeMember: true,
+              committeeRole: 'president',
+              committeeRoleTitle: pres.roleTitle || 'President',
+              verificationStatus: 'verified',
+              moveInDate: new Date().toISOString().split('T')[0],
+              vehicles: [],
+              familyMembers: [],
+              hasPets: false,
+              emergencyContact: {
+                name: 'Society Office',
+                relation: 'Administration',
+                phone: pres.phone,
+              },
+            };
+            return [presMember];
+          }
+        }
+        return [];
+      }
+      localStorage.setItem(key, JSON.stringify(INITIAL_MEMBERS));
       return INITIAL_MEMBERS;
     }
     return JSON.parse(raw);
   } catch {
-    return isRealDataMode() ? [] : INITIAL_MEMBERS;
+    return isSocietyCleanData(getActiveSocietyId()) ? [] : INITIAL_MEMBERS;
   }
 }
 
 export function saveMembers(members: SocietyMember[]): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_MEMBERS_KEY, JSON.stringify(members));
+    const activeId = getActiveSocietyId();
+    const key = getSocietyStorageKey(STORAGE_MEMBERS_KEY, activeId);
+    localStorage.setItem(key, JSON.stringify(members));
   } catch {
     // Ignore storage errors
   }
 }
 
 export function getStoredStaff(): SocietyStaffMember[] {
-  if (typeof window === 'undefined') return isRealDataMode() ? [] : INITIAL_STAFF;
+  if (typeof window === 'undefined') return isSocietyCleanData() ? [] : INITIAL_STAFF;
   try {
-    const raw = localStorage.getItem(STORAGE_STAFF_KEY);
+    const activeId = getActiveSocietyId();
+    const key = getSocietyStorageKey(STORAGE_STAFF_KEY, activeId);
+    const raw = localStorage.getItem(key);
     if (!raw) {
-      if (isRealDataMode()) return [];
-      localStorage.setItem(STORAGE_STAFF_KEY, JSON.stringify(INITIAL_STAFF));
+      if (isSocietyCleanData(activeId)) return [];
+      localStorage.setItem(key, JSON.stringify(INITIAL_STAFF));
       return INITIAL_STAFF;
     }
     return JSON.parse(raw);
   } catch {
-    return isRealDataMode() ? [] : INITIAL_STAFF;
+    return isSocietyCleanData(getActiveSocietyId()) ? [] : INITIAL_STAFF;
   }
 }
 
-export function getStoredUnits(): SocietyUnit[] {
-  if (typeof window === 'undefined') return isRealDataMode() ? [] : INITIAL_UNITS;
+export function saveStaff(staff: SocietyStaffMember[]): void {
+  if (typeof window === 'undefined') return;
   try {
-    const raw = localStorage.getItem(STORAGE_UNITS_KEY);
+    const activeId = getActiveSocietyId();
+    const key = getSocietyStorageKey(STORAGE_STAFF_KEY, activeId);
+    localStorage.setItem(key, JSON.stringify(staff));
+  } catch {}
+}
+
+export function getStoredUnits(): SocietyUnit[] {
+  if (typeof window === 'undefined') return isSocietyCleanData() ? [] : INITIAL_UNITS;
+  try {
+    const activeId = getActiveSocietyId();
+    const key = getSocietyStorageKey(STORAGE_UNITS_KEY, activeId);
+    const raw = localStorage.getItem(key);
     if (!raw) {
-      if (isRealDataMode()) return [];
-      localStorage.setItem(STORAGE_UNITS_KEY, JSON.stringify(INITIAL_UNITS));
+      if (isSocietyCleanData(activeId)) {
+        const config = getSocietyConfig();
+        const units = generateRealSocietyUnits(config);
+        localStorage.setItem(key, JSON.stringify(units));
+        return units;
+      }
+      localStorage.setItem(key, JSON.stringify(INITIAL_UNITS));
       return INITIAL_UNITS;
     }
     return JSON.parse(raw);
   } catch {
-    return isRealDataMode() ? [] : INITIAL_UNITS;
+    return isSocietyCleanData(getActiveSocietyId()) ? [] : INITIAL_UNITS;
   }
 }
 
 export function saveUnits(units: SocietyUnit[]): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_UNITS_KEY, JSON.stringify(units));
+    const activeId = getActiveSocietyId();
+    const key = getSocietyStorageKey(STORAGE_UNITS_KEY, activeId);
+    localStorage.setItem(key, JSON.stringify(units));
   } catch {
     // Ignore storage errors
   }

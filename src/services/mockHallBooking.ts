@@ -6,7 +6,8 @@ import {
   NewBookingPayload,
   SocietyFacility,
 } from '../types/hallBooking';
-import { isRealDataMode } from './dataManager';
+import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
+import { getActiveSocietyId } from './societyConfig';
 
 const STORAGE_KEY_BOOKINGS = 'apnisociety_hall_bookings_v1';
 
@@ -275,19 +276,23 @@ let inMemoryBookings = [...INITIAL_BOOKINGS];
 function getStoredBookings(): HallBooking[] {
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_BOOKINGS);
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_BOOKINGS, activeId);
+      const stored = localStorage.getItem(storageKey);
       if (stored !== null) return JSON.parse(stored);
-      if (isRealDataMode()) return [];
+      if (isSocietyCleanData(activeId)) return [];
     } catch {}
   }
-  return isRealDataMode() ? [] : inMemoryBookings;
+  return isSocietyCleanData(getActiveSocietyId()) ? [] : inMemoryBookings;
 }
 
 function saveBookings(bookings: HallBooking[]): void {
   inMemoryBookings = bookings;
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookings));
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_BOOKINGS, activeId);
+      localStorage.setItem(storageKey, JSON.stringify(bookings));
     } catch {}
   }
 }

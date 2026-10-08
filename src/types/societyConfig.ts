@@ -105,6 +105,7 @@ export interface SocietyConfig {
   modules: SocietyModuleToggles;
 
   isProductionReady: boolean;
+  isCleanProduction?: boolean;
   releasedAt?: string;
   version: string;
   customizedAt: string;
@@ -123,6 +124,7 @@ export interface SocietyItem {
   presidentPhone: string;
   createdAt: string;
   status: 'active' | 'pending_setup' | 'archived';
+  isCleanProduction?: boolean;
 }
 
 export interface CreateSocietyPayload {

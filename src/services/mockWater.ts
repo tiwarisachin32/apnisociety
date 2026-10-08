@@ -6,7 +6,8 @@ import {
   WaterSocietySummary,
   WaterTariffConfig,
 } from '../types/water';
-import { isRealDataMode } from './dataManager';
+import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
+import { getActiveSocietyId, getSocietyConfig } from './societyConfig';
 
 const STORAGE_KEY_TARIFF = 'apnisociety_water_tariff';
 const STORAGE_KEY_WATER_READINGS = 'apnisociety_water_readings';
@@ -417,19 +418,23 @@ function saveTariff(tariff: WaterTariffConfig): void {
 function getStoredReadings(): WaterMeterReading[] {
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_WATER_READINGS);
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_WATER_READINGS, activeId);
+      const stored = localStorage.getItem(storageKey);
       if (stored !== null) return JSON.parse(stored);
-      if (isRealDataMode()) return [];
+      if (isSocietyCleanData(activeId)) return [];
     } catch {}
   }
-  return isRealDataMode() ? [] : inMemoryReadings;
+  return isSocietyCleanData(getActiveSocietyId()) ? [] : inMemoryReadings;
 }
 
 function saveReadings(readings: WaterMeterReading[]): void {
   inMemoryReadings = readings;
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem(STORAGE_KEY_WATER_READINGS, JSON.stringify(readings));
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_WATER_READINGS, activeId);
+      localStorage.setItem(storageKey, JSON.stringify(readings));
     } catch {}
   }
 }
@@ -457,12 +462,30 @@ export function getWaterReadings(flatNumber?: string): WaterMeterReading[] {
 }
 
 export function getWaterSocietySummary(): WaterSocietySummary {
+  const activeId = getActiveSocietyId();
+  const isClean = isSocietyCleanData(activeId);
   const readings = getStoredReadings();
   const currentMonthReadings = (readings || []).filter((r) => r && r.month === 'September 2026');
+  const cfg = getSocietyConfig();
+  const totalFlats = cfg.totalUnitsCount || 120;
 
-  const totalFlats = 128;
+  if (isClean && currentMonthReadings.length === 0) {
+    return {
+      totalFlats,
+      readingsRecorded: 0,
+      readingsPending: totalFlats,
+      totalConsumptionKL: 0,
+      totalBilledAmount: 0,
+      totalCollectedAmount: 0,
+      averageConsumptionPerFlat: 0,
+      tankerSupplyKL: 0,
+      borewellSupplyKL: 0,
+      municipalSupplyKL: 0,
+      collectionRate: 0,
+    };
+  }
+
   const recordedCount = currentMonthReadings.filter((r) => r.currentReading > 0).length;
-  const pendingCount = Math.max(0, totalFlats - recordedCount - 108); // 10 pending in reality
 
   let totalConsumption = 0;
   let totalBilled = 0;
@@ -475,6 +498,27 @@ export function getWaterSocietySummary(): WaterSocietySummary {
       totalCollected += r.totalAmount;
     }
   });
+
+  if (isClean) {
+    const pendingCount = Math.max(0, totalFlats - recordedCount);
+    const avg = recordedCount > 0 ? Math.round((totalConsumption / recordedCount) * 10) / 10 : 0;
+    const collectionRate = totalBilled > 0 ? Math.min(100, Math.round((totalCollected / totalBilled) * 100)) : 100;
+    return {
+      totalFlats,
+      readingsRecorded: recordedCount,
+      readingsPending: pendingCount,
+      totalConsumptionKL: Math.round(totalConsumption * 10) / 10,
+      totalBilledAmount: totalBilled,
+      totalCollectedAmount: totalCollected,
+      averageConsumptionPerFlat: avg,
+      tankerSupplyKL: 0,
+      borewellSupplyKL: 0,
+      municipalSupplyKL: 0,
+      collectionRate,
+    };
+  }
+
+  const pendingCount = Math.max(0, totalFlats - recordedCount - 108); // 10 pending in reality
 
   // Scale totals to represent full society of 128 units
   const scaledConsumption = Math.round(2140 + totalConsumption);

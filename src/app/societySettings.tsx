@@ -94,7 +94,7 @@ export default function SocietySettingsScreen({
   onNavigateToBackend,
   onNavigateToMaintenance,
 }: SocietySettingsScreenProps) {
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, loginAsDemoUser } = useAuth();
   const { isMobile, isTablet, isDesktop } = useResponsive();
 
   const canManageSettings =
@@ -2881,9 +2881,19 @@ export default function SocietySettingsScreen({
                   <Text style={{ fontSize: typography.sizes.xl, fontWeight: 'bold', color: colors.success.text, marginBottom: 4, textAlign: 'center' }}>
                     Society Created Successfully!
                   </Text>
-                  <Text style={{ fontSize: typography.sizes.sm, color: colors.neutral[600], textAlign: 'center', marginBottom: spacing.md, lineHeight: 20 }}>
+                  <Text style={{ fontSize: typography.sizes.sm, color: colors.neutral[600], textAlign: 'center', marginBottom: spacing.sm, lineHeight: 20 }}>
                     "{createdSocietySuccess.society.name}" ({createdSocietySuccess.society.code}) is now registered.
                   </Text>
+
+                  {/* Clean Database Status Banner */}
+                  <View style={{ width: '100%', backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#86EFAC', borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.md }}>
+                    <Text style={{ fontSize: typography.sizes.xs, fontWeight: 'bold', color: '#166534', textTransform: 'uppercase', marginBottom: 4 }}>
+                      ✓ Database Initialized Without Sample Data
+                    </Text>
+                    <Text style={{ fontSize: typography.sizes.xs, color: '#15803D', lineHeight: 18 }}>
+                      All operational ledgers (maintenance bills, complaints, expense vouchers, water meter readings, hall bookings, and staff members) have been initialized completely empty. All entries will be created and governed directly by the Society Committee.
+                    </Text>
+                  </View>
 
                   {/* Credentials Card */}
                   <View style={{ width: '100%', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.md }}>
@@ -2909,21 +2919,33 @@ export default function SocietySettingsScreen({
                     </View>
                   </View>
 
-                  <View style={{ flexDirection: 'row', gap: spacing.sm, width: '100%' }}>
-                    <Button
-                      title="Switch to This Society Now"
-                      variant="primary"
-                      onPress={() => {
-                        handleSwitchSociety(createdSocietySuccess.society.id);
-                        setShowCreateSocietyModal(false);
-                      }}
-                      style={{ flex: 1 }}
-                    />
+                  <View style={{ flexDirection: 'column', gap: spacing.sm, width: '100%' }}>
+                    <View style={{ flexDirection: 'row', gap: spacing.sm, width: '100%' }}>
+                      <Button
+                        title="Switch to This Society"
+                        variant="primary"
+                        onPress={() => {
+                          handleSwitchSociety(createdSocietySuccess.society.id);
+                          setShowCreateSocietyModal(false);
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                      <Button
+                        title="Sign In as President"
+                        variant="secondary"
+                        onPress={() => {
+                          handleSwitchSociety(createdSocietySuccess.society.id);
+                          loginAsDemoUser(createdSocietySuccess.presidentUser);
+                          setShowCreateSocietyModal(false);
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                    </View>
                     <Button
                       title="Close"
                       variant="outline"
                       onPress={() => setShowCreateSocietyModal(false)}
-                      style={{ flex: 1 }}
+                      style={{ width: '100%' }}
                     />
                   </View>
                 </View>
@@ -2936,6 +2958,16 @@ export default function SocietySettingsScreen({
                       </Text>
                     </View>
                   ) : null}
+
+                  {/* Clean Database Architecture Banner */}
+                  <View style={{ backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.sm, marginBottom: spacing.md }}>
+                    <Text style={{ color: '#1E40AF', fontSize: typography.sizes.xs, fontWeight: '700', marginBottom: 2 }}>
+                      🛡️ Clean Database Architecture
+                    </Text>
+                    <Text style={{ color: '#1E3A8A', fontSize: typography.sizes.xs, lineHeight: 18 }}>
+                      When you create a new society, its database is created without sample or dummy data. All operational entries (residents, maintenance cycles, expenses, water readings, and bookings) will be added by the Society Committee.
+                    </Text>
+                  </View>
 
                   {/* Section 1: Society Details */}
                   <Text style={{ fontSize: typography.sizes.xs, fontWeight: 'bold', color: colors.primary[700], textTransform: 'uppercase', marginBottom: spacing.xs }}>

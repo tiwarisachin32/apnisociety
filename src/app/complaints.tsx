@@ -114,7 +114,7 @@ export default function ComplaintsScreen({
 
   // Assign Staff Modal State
   const [selectedAssignTicket, setSelectedAssignTicket] = useState<ComplaintTicket | null>(null);
-  const [selectedStaffId, setSelectedStaffId] = useState<string>(staffMembers[0].id);
+  const [selectedStaffId, setSelectedStaffId] = useState<string>(staffMembers[0]?.id || '');
   const [scheduledTime, setScheduledTime] = useState('Today, 03:00 PM');
   const [assignNotes, setAssignNotes] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
@@ -807,7 +807,7 @@ export default function ComplaintsScreen({
                               setSelectedAssignTicket(ticket);
                               // Auto pick staff based on category
                               const match = staffMembers.find((s) => s.category === ticket.category) || staffMembers[0];
-                              setSelectedStaffId(match.id);
+                              setSelectedStaffId(match?.id || '');
                               setScheduledTime('Today, 03:00 PM');
                               setAssignNotes('');
                             }}
@@ -851,8 +851,19 @@ export default function ComplaintsScreen({
           </View>
 
           <View style={styles.staffGrid}>
-            {staffMembers.map((staff) => (
-              <Card key={staff.id} variant="elevated" style={styles.staffCard}>
+            {staffMembers.length === 0 ? (
+              <Card variant="flat" style={{ padding: spacing.xl, alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border.light, width: '100%' }}>
+                <Text style={{ fontSize: 36, marginBottom: 8 }}>👷</Text>
+                <Text style={{ fontSize: typography.sizes.base, fontWeight: '700', color: colors.neutral[800], marginBottom: 4 }}>
+                  No Maintenance Staff Onboarded Yet
+                </Text>
+                <Text style={{ fontSize: typography.sizes.sm, color: colors.neutral[500], textAlign: 'center', maxWidth: 460, lineHeight: 20, marginBottom: spacing.md }}>
+                  The maintenance staff directory for this society is initialized clean without sample data. Committee members can onboard facility technicians, electricians, and plumbers in the Members & Staff directory.
+                </Text>
+              </Card>
+            ) : (
+              staffMembers.map((staff) => (
+                <Card key={staff.id} variant="elevated" style={styles.staffCard}>
                 <View style={styles.staffHeader}>
                   <View style={styles.staffAvatar}>
                     <Text style={styles.staffAvatarText}>
@@ -897,7 +908,7 @@ export default function ComplaintsScreen({
                   />
                 )}
               </Card>
-            ))}
+            )))}
           </View>
         </View>
       )}
@@ -1213,26 +1224,34 @@ export default function ComplaintsScreen({
               {/* Staff Select */}
               <Text style={styles.inputLabel}>Select Certified Technician *</Text>
               <View style={styles.staffSelectGroup}>
-                {staffMembers.map((staff) => {
-                  const isSel = selectedStaffId === staff.id;
-                  return (
-                    <Pressable
-                      key={staff.id}
-                      style={[styles.staffSelectOption, isSel && styles.staffSelectOptionActive]}
-                      onPress={() => setSelectedStaffId(staff.id)}
-                    >
-                      <Text style={styles.staffRadio}>{isSel ? '🔘' : '⚪'}</Text>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.staffOptName, isSel && styles.staffOptNameActive]}>
-                          {staff.name}
-                        </Text>
-                        <Text style={styles.staffOptRole}>
-                          {staff.role} • 📞 +91 {staff.phone}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  );
-                })}
+                {staffMembers.length === 0 ? (
+                  <View style={{ padding: spacing.md, backgroundColor: '#FEF3C7', borderRadius: borderRadius.md, borderWidth: 1, borderColor: '#FDE68A', marginBottom: spacing.sm }}>
+                    <Text style={{ fontSize: typography.sizes.xs, color: '#92400E', lineHeight: 18 }}>
+                      ⚠️ No dedicated technicians are onboarded yet for this society. Committee members can onboard technicians in the Members & Staff directory, or mark this ticket resolved directly once completed.
+                    </Text>
+                  </View>
+                ) : (
+                  staffMembers.map((staff) => {
+                    const isSel = selectedStaffId === staff.id;
+                    return (
+                      <Pressable
+                        key={staff.id}
+                        style={[styles.staffSelectOption, isSel && styles.staffSelectOptionActive]}
+                        onPress={() => setSelectedStaffId(staff.id)}
+                      >
+                        <Text style={styles.staffRadio}>{isSel ? '🔘' : '⚪'}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.staffOptName, isSel && styles.staffOptNameActive]}>
+                            {staff.name}
+                          </Text>
+                          <Text style={styles.staffOptRole}>
+                            {staff.role} • 📞 +91 {staff.phone}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })
+                )}
               </View>
 
               {/* Scheduled Time */}
