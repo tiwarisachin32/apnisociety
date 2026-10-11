@@ -1142,3 +1142,35 @@ export function resetDemoMembers(): void {
     localStorage.removeItem(STORAGE_UNITS_KEY);
   }
 }
+
+/**
+ * Updates a flat unit's details (resident, owner, area, dues, parking, status).
+ */
+export function updateUnit(unitId: string, updates: Partial<SocietyUnit>): SocietyUnit {
+  const units = getStoredUnits();
+  const index = units.findIndex((u) => u.id === unitId);
+  if (index === -1) {
+    throw new Error(`Unit ${unitId} not found`);
+  }
+  const updatedUnit: SocietyUnit = {
+    ...units[index],
+    ...updates,
+  };
+  units[index] = updatedUnit;
+  saveUnits([...units]);
+  return updatedUnit;
+}
+
+/**
+ * Adds a new flat unit to the society architecture.
+ */
+export function addUnit(unitData: Omit<SocietyUnit, 'id'>): SocietyUnit {
+  const units = getStoredUnits();
+  const newUnit: SocietyUnit = {
+    id: `unit-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    ...unitData,
+  };
+  units.push(newUnit);
+  saveUnits([...units]);
+  return newUnit;
+}

@@ -12,10 +12,11 @@ import {
 } from 'react-native';
 import { ScreenContainer } from '../components/layout/ScreenContainer';
 import { AppLogo, Button, Card, FileUpload, SocietyLogo, StatusBadge } from '../components/ui';
-import { APP_NAME, PERMISSIONS } from '../constants/app';
+import { APP_NAME, PERMISSIONS, PermissionType } from '../constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
+import { User } from '../types/auth';
 import {
   applySocietyPreset,
   createSociety,
@@ -28,6 +29,7 @@ import {
   saveSocietyConfig,
   SOCIETY_PRESETS,
   switchActiveSociety,
+  deleteSociety,
 } from '../services/societyConfig';
 import {
   clearModuleData,
@@ -213,6 +215,133 @@ export default function SocietySettingsScreen({
     setConfig(updated);
     setSocietiesList(getAllSocieties());
     showToast(`✓ Switched active management to "${updated.societyName}"`);
+  };
+
+  const handleOpenDummyModal = () => {
+    const testNum = Math.floor(100 + Math.random() * 900);
+    setCreateSocietyError('');
+    setCreatedSocietySuccess(null);
+    setCreateSocietyForm({
+      societyName: `Lotus Heights Test Society #${testNum}`,
+      societyCode: `LOTUS-T${testNum}`,
+      registrationNumber: `MH/TEST/2026/${testNum}`,
+      tagline: 'Test Dummy Society for Operational QA Validation',
+      addressLine1: 'Plot 42, Sector 18 Test Tech Corridor',
+      city: 'Mumbai',
+      state: 'Maharashtra',
+      pincode: '400076',
+      totalUnitsCount: 24,
+      towersCount: 2,
+      baseMonthlyRate: 3000,
+      presidentName: 'Test President (Admin)',
+      presidentEmail: `president.test${testNum}@apnisociety.com`,
+      presidentPhone: '9820099881',
+      presidentFlatNumber: 'A-101',
+      isDummy: true,
+    });
+    setShowCreateSocietyModal(true);
+  };
+
+  const handleInstantCreateDummy = () => {
+    const testNum = Math.floor(100 + Math.random() * 900);
+    const dummyPayload: CreateSocietyPayload = {
+      societyName: `Lotus Heights Test Society #${testNum}`,
+      societyCode: `LOTUS-T${testNum}`,
+      registrationNumber: `MH/TEST/2026/${testNum}`,
+      tagline: 'Test Dummy Society for Operational QA Validation',
+      addressLine1: 'Plot 42, Sector 18 Test Tech Corridor',
+      city: 'Mumbai',
+      state: 'Maharashtra',
+      pincode: '400076',
+      totalUnitsCount: 24,
+      towersCount: 2,
+      baseMonthlyRate: 3000,
+      presidentName: 'Test President (Admin)',
+      presidentEmail: `president.test${testNum}@apnisociety.com`,
+      presidentPhone: '9820099881',
+      presidentFlatNumber: 'A-101',
+      isDummy: true,
+    };
+
+    setIsCreatingSociety(true);
+    setTimeout(() => {
+      try {
+        const result = createSociety(dummyPayload);
+        setSocietiesList(getAllSocieties());
+        setCreatedSocietySuccess({
+          society: result.society,
+          presidentUser: result.presidentUser,
+        });
+        showToast(`✓ Dummy society "${result.society.name}" created!`);
+        setShowCreateSocietyModal(true);
+      } catch (err: any) {
+        showToast(`⚠️ Failed to create dummy society: ${err?.message || ''}`);
+      } finally {
+        setIsCreatingSociety(false);
+      }
+    }, 250);
+  };
+
+  const handleTestSocietyAsPresident = async (soc: SocietyItem) => {
+    const targetPresident: User = {
+      id: `user-pres-${soc.id}`,
+      name: soc.presidentName || 'Society President',
+      email: soc.presidentEmail || `president@${soc.code.toLowerCase()}.com`,
+      phone: soc.presidentPhone || '9876543210',
+      societyId: soc.id,
+      societyName: soc.name,
+      societyCode: soc.code,
+      block: 'Tower A',
+      flatNumber: 'A-101',
+      roleId: 'role-president',
+      roleTitle: `President (${soc.name})`,
+      isCommitteeMember: true,
+      isAppOwner: false,
+      permissions: [
+        PERMISSIONS.MAINTENANCE_VIEW,
+        PERMISSIONS.MAINTENANCE_MANAGE,
+        PERMISSIONS.WATER_VIEW,
+        PERMISSIONS.WATER_RECORD_METER,
+        PERMISSIONS.WATER_MANAGE_SLABS,
+        PERMISSIONS.EXPENSES_VIEW,
+        PERMISSIONS.EXPENSES_MANAGE,
+        PERMISSIONS.REIMBURSEMENT_APPROVE,
+        PERMISSIONS.HALL_VIEW_CALENDAR,
+        PERMISSIONS.HALL_BOOK,
+        PERMISSIONS.HALL_APPROVE,
+        PERMISSIONS.COMPLAINT_VIEW_ALL,
+        PERMISSIONS.COMPLAINT_ASSIGN,
+        PERMISSIONS.COMPLAINT_RESOLVE,
+        PERMISSIONS.NOTIFICATION_VIEW,
+        PERMISSIONS.NOTIFICATION_BROADCAST,
+        PERMISSIONS.MEMBERS_VIEW,
+        PERMISSIONS.MEMBERS_MANAGE,
+        PERMISSIONS.ROLES_VIEW,
+        PERMISSIONS.ROLES_MANAGE,
+        PERMISSIONS.SETTINGS_MANAGE,
+        PERMISSIONS.AUDIT_VIEW,
+        PERMISSIONS.REPORTS_VIEW,
+        PERMISSIONS.REPORTS_EXPORT,
+      ],
+    };
+    switchActiveSociety(soc.id);
+    await loginAsDemoUser(targetPresident);
+    showToast(`✓ Testing society "${soc.name}" as President. You can return to Company Console anytime.`);
+  };
+
+  const handleDeleteSociety = (societyId: string, societyName: string) => {
+    if (societyId === 'soc-01') {
+      showToast('⚠️ Cannot delete default root society.');
+      return;
+    }
+    const ok = typeof window !== 'undefined'
+      ? window.confirm(`Delete dummy society "${societyName}"? All test records and accounts will be permanently cleared.`)
+      : true;
+    if (ok) {
+      deleteSociety(societyId);
+      setSocietiesList(getAllSocieties());
+      showToast(`✓ Deleted dummy society "${societyName}".`);
+    }
   };
 
   // Platform App Company State
@@ -934,16 +1063,31 @@ export default function SocietySettingsScreen({
                   Configure multi-story high-rises, towers, floors, and unit layouts for client housing societies. Onboard new societies and appoint their Society President.
                 </Text>
               </View>
-              <Button
-                title="+ Setup New Multi-Story Society"
-                variant="primary"
-                onPress={() => {
-                  setCreateSocietyError('');
-                  setCreatedSocietySuccess(null);
-                  setShowCreateSocietyModal(true);
-                }}
-                style={{ backgroundColor: '#D97706' }}
-              />
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                <Button
+                  title="🧪 Create Dummy Society"
+                  variant="outline"
+                  onPress={handleOpenDummyModal}
+                  style={{ borderColor: '#D97706', backgroundColor: '#FEF3C7' }}
+                />
+                <Button
+                  title="⚡ 1-Click Instant Dummy"
+                  variant="outline"
+                  onPress={handleInstantCreateDummy}
+                  disabled={isCreatingSociety}
+                  style={{ borderColor: '#059669', backgroundColor: '#ECFDF5' }}
+                />
+                <Button
+                  title="+ Setup Custom Society"
+                  variant="primary"
+                  onPress={() => {
+                    setCreateSocietyError('');
+                    setCreatedSocietySuccess(null);
+                    setShowCreateSocietyModal(true);
+                  }}
+                  style={{ backgroundColor: '#D97706' }}
+                />
+              </View>
             </View>
 
             {/* Platform Metrics Bar */}
@@ -976,22 +1120,26 @@ export default function SocietySettingsScreen({
           <View style={{ gap: spacing.md, marginBottom: spacing.lg }}>
             {societiesList.map((soc) => {
               const isCurrentlyActive = config.id === soc.id || config.societyCode === soc.code;
+              const isDummySoc = Boolean(soc.isDummy || soc.code.includes('TEST') || soc.name.includes('Test'));
               return (
                 <Card
                   key={soc.id}
                   style={{
-                    borderColor: isCurrentlyActive ? colors.primary[500] : colors.border.default,
+                    borderColor: isCurrentlyActive ? colors.primary[500] : isDummySoc ? '#F59E0B' : colors.border.default,
                     borderWidth: isCurrentlyActive ? 2 : 1,
-                    backgroundColor: isCurrentlyActive ? '#F0F9FF' : colors.surface,
+                    backgroundColor: isCurrentlyActive ? '#F0F9FF' : isDummySoc ? '#FFFDF5' : colors.surface,
                   }}
                 >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
                     <View style={{ flex: 1, minWidth: 260 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
                         <Text style={{ fontSize: typography.sizes.lg, fontWeight: typography.weights.bold, color: colors.neutral[900] }}>
                           {soc.name}
                         </Text>
                         <StatusBadge status="info" label={soc.code} size="sm" showDot={false} />
+                        {isDummySoc && (
+                          <StatusBadge status="warning" label="🧪 DUMMY TEST SOCIETY" size="sm" />
+                        )}
                         {isCurrentlyActive && (
                           <StatusBadge status="paid" label="ACTIVE IN CONSOLE" size="sm" />
                         )}
@@ -1033,12 +1181,19 @@ export default function SocietySettingsScreen({
                         </View>
                       ) : (
                         <Button
-                          title="Switch to this Society"
+                          title="Switch Context"
                           variant="outline"
                           size="sm"
                           onPress={() => handleSwitchSociety(soc.id)}
                         />
                       )}
+                      <Button
+                        title="🧪 Test as President"
+                        variant="primary"
+                        size="sm"
+                        onPress={() => handleTestSocietyAsPresident(soc)}
+                        style={{ backgroundColor: '#0284C7' }}
+                      />
                       <Button
                         title="Configure Towers"
                         variant="secondary"
@@ -1048,6 +1203,14 @@ export default function SocietySettingsScreen({
                           setActiveTab('architecture');
                         }}
                       />
+                      {soc.id !== 'soc-01' && (
+                        <Button
+                          title="🗑️ Delete Society"
+                          variant="danger"
+                          size="sm"
+                          onPress={() => handleDeleteSociety(soc.id, soc.name)}
+                        />
+                      )}
                     </View>
                   </View>
                 </Card>
@@ -2967,6 +3130,25 @@ export default function SocietySettingsScreen({
                     <Text style={{ color: '#1E3A8A', fontSize: typography.sizes.xs, lineHeight: 18 }}>
                       When you create a new society, its database is created without sample or dummy data. All operational entries (residents, maintenance cycles, expenses, water readings, and bookings) will be added by the Society Committee.
                     </Text>
+                  </View>
+
+                  {/* Testing Purpose Quick Action */}
+                  <View style={{ backgroundColor: '#FEF3C7', borderColor: '#FDE68A', borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.sm, marginBottom: spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                    <View style={{ flex: 1, minWidth: 200 }}>
+                      <Text style={{ fontSize: typography.sizes.xs, fontWeight: '700', color: '#92400E' }}>
+                        🧪 Testing Purpose? Fast-Fill Dummy Society
+                      </Text>
+                      <Text style={{ fontSize: 11, color: '#B45309' }}>
+                        Populates realistic test towers, units, and appointed President login for quick QA validation.
+                      </Text>
+                    </View>
+                    <Button
+                      title="⚡ Auto-Fill Test Data"
+                      variant="primary"
+                      size="sm"
+                      onPress={handleOpenDummyModal}
+                      style={{ backgroundColor: '#D97706' }}
+                    />
                   </View>
 
                   {/* Section 1: Society Details */}

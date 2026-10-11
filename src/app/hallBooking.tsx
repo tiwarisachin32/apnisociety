@@ -25,6 +25,9 @@ import {
   reviewHallBooking,
   SLOT_INFO,
   SOCIETY_FACILITIES,
+  getStoredFacilities,
+  updateFacilityTariff,
+  resetFacilitiesToDefault,
 } from '../services/mockHallBooking';
 import {
   BookingSlot,
@@ -60,6 +63,21 @@ export default function HallBookingScreen({
   // RBAC checks
   const canBook = hasPermission(PERMISSIONS.HALL_BOOK);
   const canApprove = hasPermission(PERMISSIONS.HALL_APPROVE);
+
+  // Facilities & Tariffs state
+  const [facilities, setFacilities] = useState<SocietyFacility[]>(() => getStoredFacilities());
+
+  // Tariff Configuration Modal state
+  const [showTariffModal, setShowTariffModal] = useState(false);
+  const [tariffEditingVenue, setTariffEditingVenue] = useState<FacilityType>('community_hall');
+  const [tariffMorning, setTariffMorning] = useState('4500');
+  const [tariffEvening, setTariffEvening] = useState('5500');
+  const [tariffFullDay, setTariffFullDay] = useState('9000');
+  const [tariffDeposit, setTariffDeposit] = useState('5000');
+  const [tariffCleaning, setTariffCleaning] = useState('500');
+  const [tariffCapacity, setTariffCapacity] = useState('180');
+  const [tariffFeedback, setTariffFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isSavingTariff, setIsSavingTariff] = useState(false);
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'venues' | 'calendar' | 'my_bookings' | 'approvals' | 'rules'>('venues');
@@ -113,6 +131,7 @@ export default function HallBookingScreen({
   const [isRefunding, setIsRefunding] = useState(false);
 
   const reloadData = () => {
+    setFacilities(getStoredFacilities());
     setAllBookings(getAllHallBookings());
     setSummary(getHallBookingSummary(user?.id));
   };
@@ -129,6 +148,112 @@ export default function HallBookingScreen({
     setShowBookingModal(true);
   };
 
+  // Open Tariff Change Modal helper
+  const handleOpenTariffModal = (venueId?: FacilityType) => {
+    const targetVenueId = venueId || tariffEditingVenue || 'community_hall';
+    setTariffEditingVenue(targetVenueId);
+    const targetFacility = facilities.find((f) => f.id === targetVenueId) || facilities[0];
+    if (targetFacility) {
+      setTariffMorning(targetFacility.rates.morning.toString());
+      setTariffEvening(targetFacility.rates.evening.toString());
+      setTariffFullDay(targetFacility.rates.full_day.toString());
+      setTariffDeposit(targetFacility.securityDeposit.toString());
+      setTariffCleaning(targetFacility.cleaningFee.toString());
+      setTariffCapacity(targetFacility.capacity.toString());
+    }
+    setTariffFeedback(null);
+    setShowTariffModal(true);
+  };
+
+  const handleSelectTariffVenue = (venueId: FacilityType) => {
+    setTariffEditingVenue(venueId);
+    const targetFacility = facilities.find((f) => f.id === venueId) || facilities[0];
+    if (targetFacility) {
+      setTariffMorning(targetFacility.rates.morning.toString());
+      setTariffEvening(targetFacility.rates.evening.toString());
+      setTariffFullDay(targetFacility.rates.full_day.toString());
+      setTariffDeposit(targetFacility.securityDeposit.toString());
+      setTariffCleaning(targetFacility.cleaningFee.toString());
+      setTariffCapacity(targetFacility.capacity.toString());
+    }
+    setTariffFeedback(null);
+  };
+
+  const handleSaveTariff = () => {
+    const morning = parseFloat(tariffMorning);
+    const evening = parseFloat(tariffEvening);
+    const fullDay = parseFloat(tariffFullDay);
+    const deposit = parseFloat(tariffDeposit);
+    const cleaning = parseFloat(tariffCleaning);
+    const capacity = parseInt(tariffCapacity, 10);
+
+    if (isNaN(morning) || morning < 0 || isNaN(evening) || evening < 0 || isNaN(fullDay) || fullDay < 0) {
+      setTariffFeedback({ type: 'error', message: 'Please enter valid non-negative slot rates.' });
+      return;
+    }
+    if (isNaN(deposit) || deposit < 0) {
+      setTariffFeedback({ type: 'error', message: 'Please enter a valid security deposit amount.' });
+      return;
+    }
+    if (isNaN(cleaning) || cleaning < 0) {
+      setTariffFeedback({ type: 'error', message: 'Please enter a valid cleaning fee.' });
+      return;
+    }
+    if (isNaN(capacity) || capacity <= 0) {
+      setTariffFeedback({ type: 'error', message: 'Please enter a valid maximum guest capacity.' });
+      return;
+    }
+
+    setIsSavingTariff(true);
+    try {
+      const updatedList = updateFacilityTariff(tariffEditingVenue, {
+        rates: {
+          morning,
+          evening,
+          full_day: fullDay,
+        },
+        securityDeposit: deposit,
+        cleaningFee: cleaning,
+        capacity,
+      });
+      setFacilities(updatedList);
+      reloadData();
+      setIsSavingTariff(false);
+      const targetFacility = updatedList.find((f) => f.id === tariffEditingVenue);
+      setTariffFeedback({
+        type: 'success',
+        message: `Tariff rates for "${targetFacility?.name || 'Venue'}" have been updated and are now live!`,
+      });
+    } catch (err: any) {
+      setIsSavingTariff(false);
+      setTariffFeedback({ type: 'error', message: err.message || 'Failed to update tariff.' });
+    }
+  };
+
+  const handleResetVenueTariff = () => {
+    const defaultFac = SOCIETY_FACILITIES.find((f) => f.id === tariffEditingVenue);
+    if (defaultFac) {
+      setTariffMorning(defaultFac.rates.morning.toString());
+      setTariffEvening(defaultFac.rates.evening.toString());
+      setTariffFullDay(defaultFac.rates.full_day.toString());
+      setTariffDeposit(defaultFac.securityDeposit.toString());
+      setTariffCleaning(defaultFac.cleaningFee.toString());
+      setTariffCapacity(defaultFac.capacity.toString());
+      const updatedList = updateFacilityTariff(tariffEditingVenue, {
+        rates: defaultFac.rates,
+        securityDeposit: defaultFac.securityDeposit,
+        cleaningFee: defaultFac.cleaningFee,
+        capacity: defaultFac.capacity,
+      });
+      setFacilities(updatedList);
+      reloadData();
+      setTariffFeedback({
+        type: 'success',
+        message: `Reset "${defaultFac.name}" to standard society defaults.`,
+      });
+    }
+  };
+
   // Submit Booking Handler
   const handleSubmitBooking = async () => {
     if (!formEventTitle.trim()) {
@@ -141,7 +266,7 @@ export default function HallBookingScreen({
       return;
     }
 
-    const facility = SOCIETY_FACILITIES.find((f) => f.id === formVenue);
+    const facility = facilities.find((f) => f.id === formVenue);
     if (facility && guestNum > facility.capacity) {
       setBookingError(`Guest count exceeds venue maximum capacity (${facility.capacity} guests).`);
       return;
@@ -237,7 +362,7 @@ export default function HallBookingScreen({
   };
 
   // Calculate live fees for form
-  const currentFormFacility = SOCIETY_FACILITIES.find((f) => f.id === formVenue) || SOCIETY_FACILITIES[0];
+  const currentFormFacility = facilities.find((f) => f.id === formVenue) || facilities[0];
   const currentRent = currentFormFacility.rates[formSlot];
   const currentDeposit = currentFormFacility.securityDeposit;
   const currentCleaning = currentFormFacility.cleaningFee;
@@ -307,6 +432,14 @@ export default function HallBookingScreen({
 
         {/* Action Buttons Top */}
         <View style={styles.headerActions}>
+          {(canApprove || user?.isCommitteeMember || user?.isAppOwner) && (
+            <Button
+              title="⚙️ Change Venue Tariffs"
+              variant="outline"
+              size="md"
+              onPress={() => handleOpenTariffModal()}
+            />
+          )}
           {canBook && (
             <Button
               title="+ Book a Venue Now"
@@ -333,7 +466,7 @@ export default function HallBookingScreen({
           onPress={() => setActiveTab('venues')}
         >
           <Text style={[styles.tabButtonText, activeTab === 'venues' && styles.tabButtonTextActive]}>
-            🏛️ Venues & Tariffs ({SOCIETY_FACILITIES.length})
+            🏛️ Venues & Tariffs ({facilities.length})
           </Text>
         </Pressable>
 
@@ -384,16 +517,24 @@ export default function HallBookingScreen({
       {activeTab === 'venues' && (
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeaderRow}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.sectionTitle}>Clubhouse Venues & Event Spaces</Text>
               <Text style={styles.sectionSubtitle}>
                 Select an indoor or outdoor venue below to inspect capacity, amenities and tariffs.
               </Text>
             </View>
+            {(canApprove || user?.isCommitteeMember || user?.isAppOwner) && (
+              <Button
+                title="⚙️ Change Venue Tariffs & Fees"
+                variant="outline"
+                size="sm"
+                onPress={() => handleOpenTariffModal()}
+              />
+            )}
           </View>
 
           <View style={styles.venuesGrid}>
-            {SOCIETY_FACILITIES.map((facility) => (
+            {facilities.map((facility) => (
               <Card key={facility.id} variant="elevated" style={styles.venueCard}>
                 <View style={styles.venueHeaderRow}>
                   <View>
@@ -444,6 +585,14 @@ export default function HallBookingScreen({
 
                 {/* Footer Action */}
                 <View style={styles.venueCardFooter}>
+                  {(canApprove || user?.isCommitteeMember || user?.isAppOwner) && (
+                    <Button
+                      title="⚙️ Change Tariff"
+                      variant="secondary"
+                      size="sm"
+                      onPress={() => handleOpenTariffModal(facility.id)}
+                    />
+                  )}
                   <Button
                     title="Check Availability Calendar"
                     variant="outline"
@@ -522,7 +671,7 @@ export default function HallBookingScreen({
           </View>
 
           <View style={styles.matrixList}>
-            {SOCIETY_FACILITIES.map((facility) => {
+            {facilities.map((facility) => {
               const morningAvail = checkSlotAvailability(facility.id, selectedDate, 'morning');
               const eveningAvail = checkSlotAvailability(facility.id, selectedDate, 'evening');
               const fullDayAvail = checkSlotAvailability(facility.id, selectedDate, 'full_day');
@@ -1057,7 +1206,7 @@ export default function HallBookingScreen({
               {/* Venue Selection */}
               <Text style={styles.inputLabel}>1. Select Clubhouse Venue *</Text>
               <View style={styles.venuePickerRow}>
-                {SOCIETY_FACILITIES.map((facility) => {
+                {facilities.map((facility) => {
                   const isSel = formVenue === facility.id;
                   return (
                     <Pressable
@@ -1537,6 +1686,249 @@ export default function HallBookingScreen({
                 onPress={handleConfirmRefund}
                 disabled={isRefunding}
               />
+            </View>
+          </Card>
+        </View>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: CONFIGURE VENUE TARIFF & FEES */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={showTariffModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isSavingTariff) setShowTariffModal(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <Card variant="elevated" style={[styles.modalContainer, { maxWidth: 680 }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <Text style={{ fontSize: 16 }}>⚙️</Text>
+                  <Text style={styles.modalTitle}>Configure Venue Tariffs & Fees</Text>
+                </View>
+                <Text style={styles.modalSubtitle}>
+                  Update slot rental rates, security deposits, and cleaning charges for clubhouse facilities.
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  if (!isSavingTariff) setShowTariffModal(false);
+                }}
+                style={styles.modalCloseBtn}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
+              {/* Feedback Alert Banner */}
+              {tariffFeedback && (
+                <View
+                  style={[
+                    styles.tariffFeedbackBanner,
+                    tariffFeedback.type === 'success'
+                      ? styles.tariffFeedbackSuccess
+                      : styles.tariffFeedbackError,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tariffFeedbackText,
+                      tariffFeedback.type === 'success'
+                        ? styles.tariffFeedbackSuccessText
+                        : styles.tariffFeedbackErrorText,
+                    ]}
+                  >
+                    {tariffFeedback.type === 'success' ? '✓ ' : '⚠️ '}
+                    {tariffFeedback.message}
+                  </Text>
+                </View>
+              )}
+
+              {/* Venue Selector Tabs */}
+              <Text style={styles.inputLabel}>Select Facility / Venue to Configure:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }}>
+                <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                  {facilities.map((fac) => {
+                    const isSelected = tariffEditingVenue === fac.id;
+                    return (
+                      <Pressable
+                        key={fac.id}
+                        onPress={() => handleSelectTariffVenue(fac.id)}
+                        style={[
+                          styles.tariffVenueTab,
+                          isSelected && styles.tariffVenueTabActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.tariffVenueTabText,
+                            isSelected && styles.tariffVenueTabTextActive,
+                          ]}
+                        >
+                          {fac.name.split('(')[0].trim()}
+                        </Text>
+                        <Text style={[styles.tariffVenueTabSub, isSelected && styles.tariffVenueTabSubActive]}>
+                          Eve: ₹{fac.rates.evening.toLocaleString('en-IN')}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+
+              {/* Selected Venue Summary Box */}
+              {(() => {
+                const curFac = facilities.find((f) => f.id === tariffEditingVenue) || facilities[0];
+                return (
+                  <View style={styles.tariffVenueInfoCard}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={styles.tariffVenueInfoTitle}>{curFac.name}</Text>
+                      <StatusBadge status="info" label={`Max ${curFac.capacity} Guests`} size="sm" showDot={false} />
+                    </View>
+                    <Text style={styles.tariffVenueInfoDesc}>{curFac.tagline}</Text>
+                  </View>
+                );
+              })()}
+
+              {/* Slot Rental Charges */}
+              <Text style={[styles.inputLabel, { marginTop: spacing.md }]}>1. Slot Rental Tariffs (₹ INR)</Text>
+              <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile]}>
+                <View style={styles.twoColItem}>
+                  <Text style={styles.fieldSubLabel}>Morning Slot (09:00 AM – 02:00 PM) *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={tariffMorning}
+                    onChangeText={setTariffMorning}
+                    keyboardType="numeric"
+                    placeholder="4500"
+                  />
+                  <Text style={styles.inputHint}>Lunch, pooja or morning celebration rate</Text>
+                </View>
+
+                <View style={styles.twoColItem}>
+                  <Text style={styles.fieldSubLabel}>Evening Slot (04:00 PM – 10:30 PM) *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={tariffEvening}
+                    onChangeText={setTariffEvening}
+                    keyboardType="numeric"
+                    placeholder="5500"
+                  />
+                  <Text style={styles.inputHint}>Prime evening reception or dinner party rate</Text>
+                </View>
+              </View>
+
+              <View style={{ marginTop: spacing.sm }}>
+                <Text style={styles.fieldSubLabel}>Full Day Booking (09:00 AM – 10:30 PM) *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={tariffFullDay}
+                  onChangeText={setTariffFullDay}
+                  keyboardType="numeric"
+                  placeholder="9000"
+                />
+                <Text style={styles.inputHint}>Combined full-day event tariff (typically discounted bundle)</Text>
+              </View>
+
+              {/* Security Deposits & Cleaning Fees */}
+              <Text style={[styles.inputLabel, { marginTop: spacing.md }]}>2. Escrow Deposit & Maintenance Fees (₹ INR)</Text>
+              <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile]}>
+                <View style={styles.twoColItem}>
+                  <Text style={styles.fieldSubLabel}>Refundable Security Deposit *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={tariffDeposit}
+                    onChangeText={setTariffDeposit}
+                    keyboardType="numeric"
+                    placeholder="5000"
+                  />
+                  <Text style={styles.inputHint}>Held in escrow; refunded within 24 hrs post-event</Text>
+                </View>
+
+                <View style={styles.twoColItem}>
+                  <Text style={styles.fieldSubLabel}>Post-Event Deep Cleaning Fee *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={tariffCleaning}
+                    onChangeText={setTariffCleaning}
+                    keyboardType="numeric"
+                    placeholder="500"
+                  />
+                  <Text style={styles.inputHint}>Covers sanitization, floor scrub & waste clearance</Text>
+                </View>
+              </View>
+
+              <View style={{ marginTop: spacing.sm }}>
+                <Text style={styles.fieldSubLabel}>Maximum Permitted Guest Capacity (Count) *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={tariffCapacity}
+                  onChangeText={setTariffCapacity}
+                  keyboardType="numeric"
+                  placeholder="180"
+                />
+                <Text style={styles.inputHint}>Prevents fire hazard overcrowding during resident booking</Text>
+              </View>
+
+              {/* Live Fee Calculation Simulation */}
+              <View style={[styles.feeBreakdownCard, { marginTop: spacing.md }]}>
+                <Text style={styles.feeBreakdownTitle}>💡 Resident Booking Calculation Simulation</Text>
+                <Text style={{ fontSize: 11, color: colors.neutral[600], marginBottom: spacing.xs }}>
+                  Based on the newly configured tariff amounts above:
+                </Text>
+                <View style={styles.feeRow}>
+                  <Text style={styles.feeLabel}>Evening Event Total Payable:</Text>
+                  <Text style={[styles.feeVal, { fontWeight: 'bold', color: colors.primary[800] }]}>
+                    ₹{(parseFloat(tariffEvening || '0') + parseFloat(tariffDeposit || '0') + parseFloat(tariffCleaning || '0')).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+                <View style={styles.feeRow}>
+                  <Text style={styles.feeLabel}>Morning Event Total Payable:</Text>
+                  <Text style={styles.feeVal}>
+                    ₹{(parseFloat(tariffMorning || '0') + parseFloat(tariffDeposit || '0') + parseFloat(tariffCleaning || '0')).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+                <View style={styles.feeRow}>
+                  <Text style={styles.feeLabel}>Full Day Event Total Payable:</Text>
+                  <Text style={styles.feeVal}>
+                    ₹{(parseFloat(tariffFullDay || '0') + parseFloat(tariffDeposit || '0') + parseFloat(tariffCleaning || '0')).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+                <Text style={styles.feeDepositNote}>
+                  * Changes take effect immediately across the Venues tab, Availability Matrix, and resident checkout forms.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <Button
+                title="↺ Reset Venue Defaults"
+                variant="ghost"
+                size="sm"
+                onPress={handleResetVenueTariff}
+                disabled={isSavingTariff}
+              />
+              <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                <Button
+                  title="Close"
+                  variant="outline"
+                  size="md"
+                  onPress={() => setShowTariffModal(false)}
+                  disabled={isSavingTariff}
+                />
+                <Button
+                  title={isSavingTariff ? 'Saving...' : 'Save & Apply Tariff Changes →'}
+                  variant="primary"
+                  size="md"
+                  onPress={handleSaveTariff}
+                  disabled={isSavingTariff}
+                />
+              </View>
             </View>
           </Card>
         </View>
@@ -2573,5 +2965,83 @@ const styles = StyleSheet.create({
   reviewSummarySub: {
     fontSize: typography.sizes.xs,
     color: colors.text.secondary,
+  },
+  fieldSubLabel: {
+    fontSize: 11,
+    fontWeight: typography.weights.bold,
+    color: colors.text.primary,
+    marginBottom: 3,
+  },
+  tariffFeedbackBanner: {
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    marginBottom: spacing.sm,
+  },
+  tariffFeedbackSuccess: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
+  },
+  tariffFeedbackError: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+  },
+  tariffFeedbackText: {
+    fontSize: 12,
+    fontWeight: typography.weights.semibold,
+  },
+  tariffFeedbackSuccessText: {
+    color: '#065f46',
+  },
+  tariffFeedbackErrorText: {
+    color: '#991b1b',
+  },
+  tariffVenueTab: {
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: borderRadius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 130,
+  },
+  tariffVenueTabActive: {
+    backgroundColor: '#eff6ff',
+    borderColor: colors.primary[500],
+  },
+  tariffVenueTabText: {
+    fontSize: 12,
+    fontWeight: typography.weights.bold,
+    color: colors.text.primary,
+  },
+  tariffVenueTabTextActive: {
+    color: colors.primary[800],
+  },
+  tariffVenueTabSub: {
+    fontSize: 10,
+    color: colors.neutral[500],
+    marginTop: 2,
+  },
+  tariffVenueTabSubActive: {
+    color: colors.primary[700],
+    fontWeight: typography.weights.semibold,
+  },
+  tariffVenueInfoCard: {
+    backgroundColor: '#f8fafc',
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: spacing.xs,
+  },
+  tariffVenueInfoTitle: {
+    fontSize: 13,
+    fontWeight: typography.weights.bold,
+    color: colors.text.primary,
+  },
+  tariffVenueInfoDesc: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    marginTop: 2,
   },
 });

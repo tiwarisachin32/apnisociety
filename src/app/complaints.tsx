@@ -149,17 +149,19 @@ export default function ComplaintsScreen({
 
   // Filter helper
   const filterTickets = (list: ComplaintTicket[]) => {
+    if (!Array.isArray(list)) return [];
     return list.filter((item) => {
+      if (!item) return false;
       if (statusFilter !== 'all' && item.status !== statusFilter) return false;
       if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
       if (priorityFilter !== 'all' && item.priority !== priorityFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const matchTitle = item.title.toLowerCase().includes(q);
-        const matchNumber = item.ticketNumber.toLowerCase().includes(q);
-        const matchFlat = item.userFlat.toLowerCase().includes(q);
-        const matchName = item.userName.toLowerCase().includes(q);
-        const matchLoc = item.locationDetails.toLowerCase().includes(q);
+        const matchTitle = (item.title || '').toLowerCase().includes(q);
+        const matchNumber = (item.ticketNumber || '').toLowerCase().includes(q);
+        const matchFlat = (item.userFlat || '').toLowerCase().includes(q);
+        const matchName = (item.userName || '').toLowerCase().includes(q);
+        const matchLoc = (item.locationDetails || '').toLowerCase().includes(q);
         if (!matchTitle && !matchNumber && !matchFlat && !matchName && !matchLoc) {
           return false;
         }
@@ -628,9 +630,11 @@ export default function ComplaintsScreen({
                     )}
 
                     {/* Resident Review / Rating if closed */}
-                    {ticket.rating && (
+                    {Boolean(ticket.rating && ticket.rating > 0) && (
                       <View style={styles.ratingBox}>
-                        <Text style={styles.ratingStars}>{'⭐'.repeat(ticket.rating)}</Text>
+                        <Text style={styles.ratingStars}>
+                          {'⭐'.repeat(Math.max(1, Math.min(5, Math.round(Number(ticket.rating) || 5))))}
+                        </Text>
                         <Text style={styles.ratingText}>"{ticket.feedback}"</Text>
                       </View>
                     )}
@@ -781,7 +785,7 @@ export default function ComplaintsScreen({
                     ) : (
                       <View style={styles.unassignedBanner}>
                         <Text style={styles.unassignedText}>
-                          ⏳ Awaiting staff dispatch • Priority: {ticket.priority.toUpperCase()}
+                          ⏳ Awaiting staff dispatch • Priority: {String(ticket.priority || 'medium').toUpperCase()}
                         </Text>
                       </View>
                     )}
@@ -898,7 +902,7 @@ export default function ComplaintsScreen({
 
                 {canRaise && (
                   <Button
-                    title={`Request ${staff.name.split(' ')[0]} →`}
+                    title={`Request ${(staff.name || 'Technician').split(' ')[0]} →`}
                     variant="outline"
                     size="sm"
                     onPress={() => {
@@ -1185,414 +1189,427 @@ export default function ComplaintsScreen({
       {/* ========================================================================= */}
       {/* MODAL 2: ASSIGN STAFF TO TICKET */}
       {/* ========================================================================= */}
-      <Modal
-        visible={!!selectedAssignTicket}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          if (!isAssigning) setSelectedAssignTicket(null);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <Card variant="elevated" style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Dispatch Technician / Staff</Text>
-                <Text style={styles.modalSubtitle}>
-                  Ticket #{selectedAssignTicket?.ticketNumber} • {selectedAssignTicket?.title}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => {
-                  if (!isAssigning) setSelectedAssignTicket(null);
-                }}
-                style={styles.modalCloseBtn}
-              >
-                <Text style={styles.modalCloseText}>✕</Text>
-              </Pressable>
-            </View>
-
-            <ScrollView style={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
-              <View style={styles.ticketBriefBox}>
-                <Text style={styles.briefResident}>
-                  Resident: <Text style={styles.boldText}>{selectedAssignTicket?.userName}</Text> ({selectedAssignTicket?.userFlat})
-                </Text>
-                <Text style={styles.briefLoc}>Location: {selectedAssignTicket?.locationDetails}</Text>
-                <Text style={styles.briefDesc}>"{selectedAssignTicket?.description}"</Text>
+      {Boolean(selectedAssignTicket) && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            if (!isAssigning) setSelectedAssignTicket(null);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <Card variant="elevated" style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>Dispatch Technician / Staff</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Ticket #{selectedAssignTicket?.ticketNumber} • {selectedAssignTicket?.title}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    if (!isAssigning) setSelectedAssignTicket(null);
+                  }}
+                  style={styles.modalCloseBtn}
+                >
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </Pressable>
               </View>
 
-              {/* Staff Select */}
-              <Text style={styles.inputLabel}>Select Certified Technician *</Text>
-              <View style={styles.staffSelectGroup}>
-                {staffMembers.length === 0 ? (
-                  <View style={{ padding: spacing.md, backgroundColor: '#FEF3C7', borderRadius: borderRadius.md, borderWidth: 1, borderColor: '#FDE68A', marginBottom: spacing.sm }}>
-                    <Text style={{ fontSize: typography.sizes.xs, color: '#92400E', lineHeight: 18 }}>
-                      ⚠️ No dedicated technicians are onboarded yet for this society. Committee members can onboard technicians in the Members & Staff directory, or mark this ticket resolved directly once completed.
-                    </Text>
-                  </View>
-                ) : (
-                  staffMembers.map((staff) => {
-                    const isSel = selectedStaffId === staff.id;
-                    return (
-                      <Pressable
-                        key={staff.id}
-                        style={[styles.staffSelectOption, isSel && styles.staffSelectOptionActive]}
-                        onPress={() => setSelectedStaffId(staff.id)}
-                      >
-                        <Text style={styles.staffRadio}>{isSel ? '🔘' : '⚪'}</Text>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.staffOptName, isSel && styles.staffOptNameActive]}>
-                            {staff.name}
-                          </Text>
-                          <Text style={styles.staffOptRole}>
-                            {staff.role} • 📞 +91 {staff.phone}
-                          </Text>
-                        </View>
-                      </Pressable>
-                    );
-                  })
-                )}
+              <ScrollView style={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
+                <View style={styles.ticketBriefBox}>
+                  <Text style={styles.briefResident}>
+                    Resident: <Text style={styles.boldText}>{selectedAssignTicket?.userName}</Text> ({selectedAssignTicket?.userFlat})
+                  </Text>
+                  <Text style={styles.briefLoc}>Location: {selectedAssignTicket?.locationDetails}</Text>
+                  <Text style={styles.briefDesc}>"{selectedAssignTicket?.description}"</Text>
+                </View>
+
+                {/* Staff Select */}
+                <Text style={styles.inputLabel}>Select Certified Technician *</Text>
+                <View style={styles.staffSelectGroup}>
+                  {staffMembers.length === 0 ? (
+                    <View style={{ padding: spacing.md, backgroundColor: '#FEF3C7', borderRadius: borderRadius.md, borderWidth: 1, borderColor: '#FDE68A', marginBottom: spacing.sm }}>
+                      <Text style={{ fontSize: typography.sizes.xs, color: '#92400E', lineHeight: 18 }}>
+                        ⚠️ No dedicated technicians are onboarded yet for this society. Committee members can onboard technicians in the Members & Staff directory, or mark this ticket resolved directly once completed.
+                      </Text>
+                    </View>
+                  ) : (
+                    staffMembers.map((staff) => {
+                      const isSel = selectedStaffId === staff.id;
+                      return (
+                        <Pressable
+                          key={staff.id}
+                          style={[styles.staffSelectOption, isSel && styles.staffSelectOptionActive]}
+                          onPress={() => setSelectedStaffId(staff.id)}
+                        >
+                          <Text style={styles.staffRadio}>{isSel ? '🔘' : '⚪'}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.staffOptName, isSel && styles.staffOptNameActive]}>
+                              {staff.name}
+                            </Text>
+                            <Text style={styles.staffOptRole}>
+                              {staff.role} • 📞 +91 {staff.phone}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })
+                  )}
+                </View>
+
+                {/* Scheduled Time */}
+                <Text style={styles.inputLabel}>Scheduled Visit Time *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. Today, 03:00 PM"
+                  value={scheduledTime}
+                  onChangeText={setScheduledTime}
+                />
+
+                {/* Notes */}
+                <Text style={styles.inputLabel}>Technician Instructions / Gate Clearance</Text>
+                <TextInput
+                  style={[styles.modalInput, styles.textArea]}
+                  placeholder="e.g. Check flat B-502 overhead drain traps; bring replacement seals..."
+                  multiline
+                  numberOfLines={2}
+                  value={assignNotes}
+                  onChangeText={setAssignNotes}
+                />
+              </ScrollView>
+
+              <View style={styles.modalFooter}>
+                <Button
+                  title="Cancel"
+                  variant="ghost"
+                  size="md"
+                  onPress={() => setSelectedAssignTicket(null)}
+                  disabled={isAssigning}
+                />
+                <Button
+                  title={isAssigning ? 'Dispatching...' : 'Confirm Staff Dispatch →'}
+                  variant="primary"
+                  size="md"
+                  onPress={handleAssignConfirm}
+                  disabled={isAssigning}
+                />
               </View>
-
-              {/* Scheduled Time */}
-              <Text style={styles.inputLabel}>Scheduled Visit Time *</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="e.g. Today, 03:00 PM"
-                value={scheduledTime}
-                onChangeText={setScheduledTime}
-              />
-
-              {/* Notes */}
-              <Text style={styles.inputLabel}>Technician Instructions / Gate Clearance</Text>
-              <TextInput
-                style={[styles.modalInput, styles.textArea]}
-                placeholder="e.g. Check flat B-502 overhead drain traps; bring replacement seals..."
-                multiline
-                numberOfLines={2}
-                value={assignNotes}
-                onChangeText={setAssignNotes}
-              />
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <Button
-                title="Cancel"
-                variant="ghost"
-                size="md"
-                onPress={() => setSelectedAssignTicket(null)}
-                disabled={isAssigning}
-              />
-              <Button
-                title={isAssigning ? 'Dispatching...' : 'Confirm Staff Dispatch →'}
-                variant="primary"
-                size="md"
-                onPress={handleAssignConfirm}
-                disabled={isAssigning}
-              />
-            </View>
-          </Card>
-        </View>
-      </Modal>
+            </Card>
+          </View>
+        </Modal>
+      )}
 
       {/* ========================================================================= */}
       {/* MODAL 3: MARK RESOLVED (Technician / Manager) */}
       {/* ========================================================================= */}
-      <Modal
-        visible={!!selectedResolveTicket}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          if (!isResolving) setSelectedResolveTicket(null);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <Card variant="elevated" style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Mark Work Order Resolved</Text>
-                <Text style={styles.modalSubtitle}>
-                  Ticket #{selectedResolveTicket?.ticketNumber} • {selectedResolveTicket?.title}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => {
-                  if (!isResolving) setSelectedResolveTicket(null);
-                }}
-                style={styles.modalCloseBtn}
-              >
-                <Text style={styles.modalCloseText}>✕</Text>
-              </Pressable>
-            </View>
-
-            <ScrollView style={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
-              <Text style={styles.inputLabel}>Resolution Summary & Work Performed *</Text>
-              <TextInput
-                style={[styles.modalInput, styles.textArea]}
-                placeholder="e.g. Replaced faulty 16A modular socket, crimped connections, tested electrical load on geyser."
-                multiline
-                numberOfLines={3}
-                value={resolutionSummary}
-                onChangeText={setResolutionSummary}
-              />
-
-              <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile, { marginTop: spacing.sm }]}>
-                <View style={styles.twoColItem}>
-                  <Text style={styles.inputLabel}>Materials / Spares Cost (₹)</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="e.g. 350 (0 if none)"
-                    keyboardType="numeric"
-                    value={costIncurred}
-                    onChangeText={setCostIncurred}
-                  />
+      {Boolean(selectedResolveTicket) && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            if (!isResolving) setSelectedResolveTicket(null);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <Card variant="elevated" style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>Mark Work Order Resolved</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Ticket #{selectedResolveTicket?.ticketNumber} • {selectedResolveTicket?.title}
+                  </Text>
                 </View>
-
-                <View style={styles.twoColItem}>
-                  <Text style={styles.inputLabel}>Cost Billing Allocation</Text>
-                  <Pressable
-                    style={[styles.chargeableToggle, isChargeable && styles.chargeableToggleActive]}
-                    onPress={() => setIsChargeable(!isChargeable)}
-                  >
-                    <Text style={styles.chargeableIcon}>{isChargeable ? '☑️' : '⬜'}</Text>
-                    <Text style={styles.chargeableText}>
-                      Chargeable to Resident in Next Bill
-                    </Text>
-                  </Pressable>
-                </View>
+                <Pressable
+                  onPress={() => {
+                    if (!isResolving) setSelectedResolveTicket(null);
+                  }}
+                  style={styles.modalCloseBtn}
+                >
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </Pressable>
               </View>
-            </ScrollView>
 
-            <View style={styles.modalFooter}>
-              <Button
-                title="Cancel"
-                variant="ghost"
-                size="md"
-                onPress={() => setSelectedResolveTicket(null)}
-                disabled={isResolving}
-              />
-              <Button
-                title={isResolving ? 'Resolving...' : 'Confirm Ticket Resolved ✓'}
-                variant="primary"
-                size="md"
-                onPress={handleResolveConfirm}
-                disabled={isResolving || !resolutionSummary.trim()}
-              />
-            </View>
-          </Card>
-        </View>
-      </Modal>
+              <ScrollView style={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
+                <Text style={styles.inputLabel}>Resolution Summary & Work Performed *</Text>
+                <TextInput
+                  style={[styles.modalInput, styles.textArea]}
+                  placeholder="e.g. Replaced faulty 16A modular socket, crimped connections, tested electrical load on geyser."
+                  multiline
+                  numberOfLines={3}
+                  value={resolutionSummary}
+                  onChangeText={setResolutionSummary}
+                />
+
+                <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile, { marginTop: spacing.sm }]}>
+                  <View style={styles.twoColItem}>
+                    <Text style={styles.inputLabel}>Materials / Spares Cost (₹)</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="e.g. 350 (0 if none)"
+                      keyboardType="numeric"
+                      value={costIncurred}
+                      onChangeText={setCostIncurred}
+                    />
+                  </View>
+
+                  <View style={styles.twoColItem}>
+                    <Text style={styles.inputLabel}>Cost Billing Allocation</Text>
+                    <Pressable
+                      style={[styles.chargeableToggle, isChargeable && styles.chargeableToggleActive]}
+                      onPress={() => setIsChargeable(!isChargeable)}
+                    >
+                      <Text style={styles.chargeableIcon}>{isChargeable ? '☑️' : '⬜'}</Text>
+                      <Text style={styles.chargeableText}>
+                        Chargeable to Resident in Next Bill
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={styles.modalFooter}>
+                <Button
+                  title="Cancel"
+                  variant="ghost"
+                  size="md"
+                  onPress={() => setSelectedResolveTicket(null)}
+                  disabled={isResolving}
+                />
+                <Button
+                  title={isResolving ? 'Resolving...' : 'Confirm Ticket Resolved ✓'}
+                  variant="primary"
+                  size="md"
+                  onPress={handleResolveConfirm}
+                  disabled={isResolving || !resolutionSummary.trim()}
+                />
+              </View>
+            </Card>
+          </View>
+        </Modal>
+      )}
 
       {/* ========================================================================= */}
       {/* MODAL 4: CONFIRM & RATE 5★ (Resident) */}
       {/* ========================================================================= */}
-      <Modal
-        visible={!!selectedRateTicket}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          if (!isClosing) setSelectedRateTicket(null);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <Card variant="elevated" style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Confirm Resolution & Rate Service</Text>
-                <Text style={styles.modalSubtitle}>
-                  Ticket #{selectedRateTicket?.ticketNumber}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => {
-                  if (!isClosing) setSelectedRateTicket(null);
-                }}
-                style={styles.modalCloseBtn}
-              >
-                <Text style={styles.modalCloseText}>✕</Text>
-              </Pressable>
-            </View>
-
-            <ScrollView style={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
-              <View style={styles.rateSummaryBox}>
-                <Text style={styles.rateTitle}>{selectedRateTicket?.title}</Text>
-                <Text style={styles.rateResNote}>
-                  Technician Resolution: "{selectedRateTicket?.resolutionNotes}"
-                </Text>
+      {Boolean(selectedRateTicket) && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            if (!isClosing) setSelectedRateTicket(null);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <Card variant="elevated" style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>Confirm Resolution & Rate Service</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Ticket #{selectedRateTicket?.ticketNumber}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    if (!isClosing) setSelectedRateTicket(null);
+                  }}
+                  style={styles.modalCloseBtn}
+                >
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </Pressable>
               </View>
 
-              <Text style={styles.inputLabel}>Rate Quality of Service *</Text>
-              <View style={styles.starRow}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Pressable
-                    key={star}
-                    style={styles.starBtn}
-                    onPress={() => setStarRating(star)}
-                  >
-                    <Text style={[styles.starIcon, starRating >= star && styles.starIconActive]}>
-                      ★
-                    </Text>
-                    <Text style={styles.starLabel}>
-                      {star === 1 ? 'Poor' : star === 3 ? 'Average' : star === 5 ? 'Excellent' : ''}
-                    </Text>
-                  </Pressable>
-                ))}
+              <ScrollView style={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
+                <View style={styles.rateSummaryBox}>
+                  <Text style={styles.rateTitle}>{selectedRateTicket?.title}</Text>
+                  <Text style={styles.rateResNote}>
+                    Technician Resolution: "{selectedRateTicket?.resolutionNotes}"
+                  </Text>
+                </View>
+
+                <Text style={styles.inputLabel}>Rate Quality of Service *</Text>
+                <View style={styles.starRow}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Pressable
+                      key={star}
+                      style={styles.starBtn}
+                      onPress={() => setStarRating(star)}
+                    >
+                      <Text style={[styles.starIcon, starRating >= star && styles.starIconActive]}>
+                        ★
+                      </Text>
+                      <Text style={styles.starLabel}>
+                        {star === 1 ? 'Poor' : star === 3 ? 'Average' : star === 5 ? 'Excellent' : ''}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <Text style={styles.inputLabel}>Feedback Comments (Optional)</Text>
+                <TextInput
+                  style={[styles.modalInput, styles.textArea]}
+                  placeholder="Share your experience with the speed, cleanliness, and politeness of the staff..."
+                  multiline
+                  numberOfLines={3}
+                  value={residentFeedback}
+                  onChangeText={setResidentFeedback}
+                />
+              </ScrollView>
+
+              <View style={styles.modalFooter}>
+                <Button
+                  title="Cancel"
+                  variant="ghost"
+                  size="md"
+                  onPress={() => setSelectedRateTicket(null)}
+                  disabled={isClosing}
+                />
+                <Button
+                  title={isClosing ? 'Closing...' : 'Close Ticket & Submit Review ⭐'}
+                  variant="primary"
+                  size="md"
+                  onPress={handleCloseConfirm}
+                  disabled={isClosing}
+                />
               </View>
-
-              <Text style={styles.inputLabel}>Feedback Comments (Optional)</Text>
-              <TextInput
-                style={[styles.modalInput, styles.textArea]}
-                placeholder="Share your experience with the speed, cleanliness, and politeness of the staff..."
-                multiline
-                numberOfLines={3}
-                value={residentFeedback}
-                onChangeText={setResidentFeedback}
-              />
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <Button
-                title="Cancel"
-                variant="ghost"
-                size="md"
-                onPress={() => setSelectedRateTicket(null)}
-                disabled={isClosing}
-              />
-              <Button
-                title={isClosing ? 'Closing...' : 'Close Ticket & Submit Review ⭐'}
-                variant="primary"
-                size="md"
-                onPress={handleCloseConfirm}
-                disabled={isClosing}
-              />
-            </View>
-          </Card>
-        </View>
-      </Modal>
+            </Card>
+          </View>
+        </Modal>
+      )}
 
       {/* ========================================================================= */}
       {/* MODAL 5: REOPEN TICKET */}
       {/* ========================================================================= */}
-      <Modal
-        visible={!!selectedReopenTicket}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          if (!isReopening) setSelectedReopenTicket(null);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <Card variant="elevated" style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Reopen Maintenance Ticket</Text>
-                <Text style={styles.modalSubtitle}>
-                  Ticket #{selectedReopenTicket?.ticketNumber}
-                </Text>
+      {Boolean(selectedReopenTicket) && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            if (!isReopening) setSelectedReopenTicket(null);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <Card variant="elevated" style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>Reopen Maintenance Ticket</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Ticket #{selectedReopenTicket?.ticketNumber}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    if (!isReopening) setSelectedReopenTicket(null);
+                  }}
+                  style={styles.modalCloseBtn}
+                >
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </Pressable>
               </View>
-              <Pressable
-                onPress={() => {
-                  if (!isReopening) setSelectedReopenTicket(null);
-                }}
-                style={styles.modalCloseBtn}
-              >
-                <Text style={styles.modalCloseText}>✕</Text>
-              </Pressable>
-            </View>
 
-            <View style={{ paddingVertical: spacing.sm }}>
-              <Text style={styles.inputLabel}>Reason for Reopening (Issue persists) *</Text>
-              <TextInput
-                style={[styles.modalInput, styles.textArea]}
-                placeholder="Explain why the problem was not fully resolved..."
-                multiline
-                numberOfLines={3}
-                value={reopenReason}
-                onChangeText={setReopenReason}
-              />
-            </View>
+              <View style={{ paddingVertical: spacing.sm }}>
+                <Text style={styles.inputLabel}>Reason for Reopening (Issue persists) *</Text>
+                <TextInput
+                  style={[styles.modalInput, styles.textArea]}
+                  placeholder="Explain why the problem was not fully resolved..."
+                  multiline
+                  numberOfLines={3}
+                  value={reopenReason}
+                  onChangeText={setReopenReason}
+                />
+              </View>
 
-            <View style={styles.modalFooter}>
-              <Button
-                title="Cancel"
-                variant="ghost"
-                size="md"
-                onPress={() => setSelectedReopenTicket(null)}
-                disabled={isReopening}
-              />
-              <Button
-                title={isReopening ? 'Reopening...' : 'Escalate & Reopen Ticket 🔄'}
-                variant="danger"
-                size="md"
-                onPress={handleReopenConfirm}
-                disabled={isReopening || !reopenReason.trim()}
-              />
-            </View>
-          </Card>
-        </View>
-      </Modal>
+              <View style={styles.modalFooter}>
+                <Button
+                  title="Cancel"
+                  variant="ghost"
+                  size="md"
+                  onPress={() => setSelectedReopenTicket(null)}
+                  disabled={isReopening}
+                />
+                <Button
+                  title={isReopening ? 'Reopening...' : 'Escalate & Reopen Ticket 🔄'}
+                  variant="danger"
+                  size="md"
+                  onPress={handleReopenConfirm}
+                  disabled={isReopening || !reopenReason.trim()}
+                />
+              </View>
+            </Card>
+          </View>
+        </Modal>
+      )}
 
       {/* ========================================================================= */}
       {/* MODAL 6: TICKET AUDIT TIMELINE */}
       {/* ========================================================================= */}
-      <Modal
-        visible={!!selectedDetailTicket}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSelectedDetailTicket(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <Card variant="elevated" style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Service Ticket Audit Trail</Text>
-                <Text style={styles.modalSubtitle}>
-                  {selectedDetailTicket?.ticketNumber} • {selectedDetailTicket?.title}
-                </Text>
+      {Boolean(selectedDetailTicket) && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSelectedDetailTicket(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <Card variant="elevated" style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>Service Ticket Audit Trail</Text>
+                  <Text style={styles.modalSubtitle}>
+                    {selectedDetailTicket?.ticketNumber} • {selectedDetailTicket?.title}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => setSelectedDetailTicket(null)}
+                  style={styles.modalCloseBtn}
+                >
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </Pressable>
               </View>
-              <Pressable
-                onPress={() => setSelectedDetailTicket(null)}
-                style={styles.modalCloseBtn}
-              >
-                <Text style={styles.modalCloseText}>✕</Text>
-              </Pressable>
-            </View>
 
-            <ScrollView style={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
-              <View style={styles.timelineList}>
-                {selectedDetailTicket?.timeline.map((event, idx) => (
-                  <View key={idx} style={styles.timelineRow}>
-                    <View style={styles.timelineDotCol}>
-                      <View style={styles.timelineDot} />
-                      {idx < (selectedDetailTicket.timeline.length - 1) && (
-                        <View style={styles.timelineConnector} />
-                      )}
-                    </View>
-                    <View style={styles.timelineContent}>
-                      <Text style={styles.timelineEventTitle}>{event.title}</Text>
-                      <Text style={styles.timelineActorText}>
-                        {event.actor} • {event.timestamp}
-                      </Text>
-                      {event.notes && (
-                        <Text style={styles.timelineNotesText}>"{event.notes}"</Text>
-                      )}
-                    </View>
-                  </View>
-                ))}
+              <ScrollView style={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
+                <View style={styles.timelineList}>
+                  {(selectedDetailTicket?.timeline || []).map((event, idx) => {
+                    const totalEvents = (selectedDetailTicket?.timeline || []).length;
+                    return (
+                      <View key={idx} style={styles.timelineRow}>
+                        <View style={styles.timelineDotCol}>
+                          <View style={styles.timelineDot} />
+                          {idx < totalEvents - 1 && (
+                            <View style={styles.timelineConnector} />
+                          )}
+                        </View>
+                        <View style={styles.timelineContent}>
+                          <Text style={styles.timelineEventTitle}>{event.title}</Text>
+                          <Text style={styles.timelineActorText}>
+                            {event.actor} • {event.timestamp}
+                          </Text>
+                          {event.notes && (
+                            <Text style={styles.timelineNotesText}>"{event.notes}"</Text>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+
+              <View style={styles.modalFooter}>
+                <Button
+                  title="Close"
+                  variant="primary"
+                  size="md"
+                  onPress={() => setSelectedDetailTicket(null)}
+                />
               </View>
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <Button
-                title="Close"
-                variant="primary"
-                size="md"
-                onPress={() => setSelectedDetailTicket(null)}
-              />
-            </View>
-          </Card>
-        </View>
-      </Modal>
+            </Card>
+          </View>
+        </Modal>
+      )}
     </ScreenContainer>
   );
 }

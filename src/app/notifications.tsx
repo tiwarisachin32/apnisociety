@@ -15,6 +15,7 @@ import { APP_NAME, PERMISSIONS } from '../constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
+import { getActiveSocietyBlocks } from '../services/societyConfig';
 import {
   acknowledgeNotification,
   addSimulationNotification,
@@ -107,6 +108,22 @@ export default function NotificationsScreen({
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'inbox' | 'broadcast' | 'channels' | 'settings'>('inbox');
+
+  // Tower / Block Architecture
+  const configuredBlocks = getActiveSocietyBlocks();
+  const hasMultipleBlocks = configuredBlocks.length > 1;
+
+  const audienceOptions = TARGET_AUDIENCE_OPTIONS.filter((opt) => {
+    if (!hasMultipleBlocks && (opt.id === 'tower_a' || opt.id === 'tower_b' || opt.id === 'tower_c' || opt.id === 'tower_d')) {
+      return false;
+    }
+    return true;
+  }).map((opt) => {
+    if (!hasMultipleBlocks && opt.id === 'all_residents') {
+      return { ...opt, label: 'All Society Residents' };
+    }
+    return opt;
+  });
 
   // Notifications State
   const [notifications, setNotifications] = useState<SocietyNotification[]>(() =>
@@ -1145,7 +1162,7 @@ export default function NotificationsScreen({
               {/* Target Audience */}
               <Text style={styles.inputLabel}>1. Target Audience *</Text>
               <View style={styles.targetGrid}>
-                {TARGET_AUDIENCE_OPTIONS.map((opt) => {
+                {audienceOptions.map((opt) => {
                   const isSel = formTarget === opt.id;
                   return (
                     <Pressable

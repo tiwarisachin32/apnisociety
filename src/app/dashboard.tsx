@@ -107,68 +107,145 @@ export default function DashboardScreen({
   };
 
   const handleActionClick = (action: QuickActionItem) => {
-    if ((action.id === 'action-pay-maintenance' || action.id === 'action-manage-maintenance') && onNavigateToMaintenance) {
+    // 1. Maintenance & Society Dues Billing
+    if (
+      (action.id === 'action-pay-maintenance' ||
+        action.id === 'action-manage-maintenance' ||
+        action.id.includes('maintenance')) &&
+      onNavigateToMaintenance
+    ) {
       onNavigateToMaintenance();
       return;
     }
 
+    // 2. Water Meter & Volumetric Tariff
     if (
       (action.id === 'action-water-consumption' ||
         action.id === 'action-record-meter' ||
-        action.id === 'action-manage-slabs') &&
+        action.id === 'action-manage-slabs' ||
+        action.id.includes('water') ||
+        action.id.includes('meter')) &&
       onNavigateToWater
     ) {
       onNavigateToWater();
       return;
     }
 
-    if (action.id === 'action-submit-expense' && onNavigateToReimbursements) {
-      onNavigateToReimbursements();
-      return;
-    }
-
-    if (action.id === 'action-book-hall' && onNavigateToHallBooking) {
+    // 3. Hall & Clubhouse Facilities Booking and Approvals
+    if (
+      (action.id === 'action-book-hall' ||
+        action.id === 'action-approve-hall' ||
+        action.id.includes('hall')) &&
+      onNavigateToHallBooking
+    ) {
       onNavigateToHallBooking();
       return;
     }
 
-    if ((action.id === 'action-raise-complaint' || action.id === 'action-resolve-complaints') && onNavigateToComplaints) {
+    // 4. Complaints & Helpdesk Tickets
+    if (
+      (action.id === 'action-raise-complaint' ||
+        action.id === 'action-resolve-complaints' ||
+        action.id.includes('complaint')) &&
+      onNavigateToComplaints
+    ) {
       onNavigateToComplaints();
       return;
     }
 
+    // 5. Reimbursements / Expense Claims
+    if (action.id === 'action-submit-expense') {
+      if (onNavigateToReimbursements) {
+        onNavigateToReimbursements();
+        return;
+      }
+      if (onNavigateToExpenses) {
+        onNavigateToExpenses();
+        return;
+      }
+    }
+
+    // 6. Expense Vouchers & Financial Approvals
+    if (action.id === 'action-approve-expense' || action.id.includes('expense')) {
+      if (onNavigateToExpenses) {
+        onNavigateToExpenses();
+        return;
+      }
+      if (onNavigateToReimbursements) {
+        onNavigateToReimbursements();
+        return;
+      }
+    }
+
+    // 7. Notices & Multi-Channel Broadcast Circulars
     if (
-      (action.id === 'action-view-notifications' || action.id === 'action-broadcast-announcement') &&
+      (action.id === 'action-view-notifications' ||
+        action.id === 'action-broadcast-announcement' ||
+        action.id.includes('notification')) &&
       onNavigateToNotifications
     ) {
       onNavigateToNotifications();
       return;
     }
 
+    // 8. Society Directory & Member / Unit Management
     if (
-      (action.id === 'action-members-directory' || action.id === 'action-manage-members') &&
+      (action.id === 'action-members-directory' ||
+        action.id === 'action-manage-members' ||
+        action.id.includes('member')) &&
       onNavigateToMembers
     ) {
       onNavigateToMembers();
       return;
     }
 
-    if (action.id === 'action-roles-security' && onNavigateToRoles) {
+    // 9. Roles & Permissions (RBAC Matrix)
+    if (
+      (action.id === 'action-roles-security' || action.id.includes('role')) &&
+      onNavigateToRoles
+    ) {
       onNavigateToRoles();
       return;
     }
 
-    if (action.id === 'action-view-reports' && onNavigateToReports) {
+    // 10. Financial, Collection & Defaulters Reports
+    if (
+      (action.id === 'action-view-reports' || action.id.includes('report')) &&
+      onNavigateToReports
+    ) {
       onNavigateToReports();
       return;
     }
 
-    if (
-      (action.id === 'action-submit-expense' || action.id === 'action-approve-expense') &&
-      onNavigateToExpenses
-    ) {
-      onNavigateToExpenses();
-      return;
+    // Category-based fallback navigation
+    if (action.category === 'finance') {
+      if (onNavigateToMaintenance) {
+        onNavigateToMaintenance();
+        return;
+      }
+    } else if (action.category === 'utilities') {
+      if (onNavigateToWater) {
+        onNavigateToWater();
+        return;
+      }
+    } else if (action.category === 'community') {
+      if (action.id.includes('hall') && onNavigateToHallBooking) {
+        onNavigateToHallBooking();
+        return;
+      }
+      if (action.id.includes('member') && onNavigateToMembers) {
+        onNavigateToMembers();
+        return;
+      }
+      if (onNavigateToNotifications) {
+        onNavigateToNotifications();
+        return;
+      }
+    } else if (action.category === 'operations') {
+      if (onNavigateToComplaints) {
+        onNavigateToComplaints();
+        return;
+      }
     }
 
     let details = `You have access to ${action.title} based on your granted permissions.`;
@@ -195,19 +272,49 @@ export default function DashboardScreen({
   };
 
   const handleMetricAction = (metric: DashboardMetric) => {
-    if ((metric.id === 'metric-my-dues' || metric.id === 'metric-society-collection') && onNavigateToMaintenance) {
+    if (
+      (metric.id === 'metric-my-dues' ||
+        metric.id === 'metric-society-collection' ||
+        metric.id.includes('maintenance')) &&
+      onNavigateToMaintenance
+    ) {
       onNavigateToMaintenance();
       return;
     }
 
-    if ((metric.id === 'metric-my-water' || metric.id === 'metric-meter-status') && onNavigateToWater) {
+    if (
+      (metric.id === 'metric-my-water' ||
+        metric.id === 'metric-meter-status' ||
+        metric.id.includes('water')) &&
+      onNavigateToWater
+    ) {
       onNavigateToWater();
       return;
     }
 
-    if (metric.id === 'metric-pending-approvals' && onNavigateToExpenses) {
-      onNavigateToExpenses();
-      return;
+    if (metric.id === 'metric-pending-approvals' || metric.id.includes('expense')) {
+      if (onNavigateToExpenses) {
+        onNavigateToExpenses();
+        return;
+      }
+      if (onNavigateToReimbursements) {
+        onNavigateToReimbursements();
+        return;
+      }
+    }
+
+    if (metric.id.includes('complaint') || metric.id.includes('ticket')) {
+      if (onNavigateToComplaints) {
+        onNavigateToComplaints();
+        return;
+      }
+    }
+
+    if (metric.id.includes('hall') || metric.id.includes('booking')) {
+      if (onNavigateToHallBooking) {
+        onNavigateToHallBooking();
+        return;
+      }
     }
 
     setActiveActionModal({
@@ -561,34 +668,55 @@ export default function DashboardScreen({
             subtitle="Latest transactions, bookings & service tickets"
           >
             <View style={styles.activityList}>
-              {getSocietyActivities().map((activity, index) => (
-                <View
-                  key={activity.id}
-                  style={[
-                    styles.activityItem,
-                    index === getSocietyActivities().length - 1 && styles.activityItemLast,
-                  ]}
-                >
-                  <View style={styles.activityLeft}>
-                    <Text style={styles.activityTitle}>{activity.title}</Text>
-                    <Text style={styles.activityMeta}>
-                      {activity.flatOrUser} • {activity.timestamp}
-                    </Text>
-                  </View>
+              {getSocietyActivities().map((activity, index) => {
+                const handleActivityPress = () => {
+                  if (activity.type === 'payment' && onNavigateToMaintenance) {
+                    onNavigateToMaintenance();
+                  } else if (activity.type === 'complaint' && onNavigateToComplaints) {
+                    onNavigateToComplaints();
+                  } else if (activity.type === 'booking' && onNavigateToHallBooking) {
+                    onNavigateToHallBooking();
+                  } else if (activity.type === 'reimbursement') {
+                    if (onNavigateToReimbursements) {
+                      onNavigateToReimbursements();
+                    } else if (onNavigateToExpenses) {
+                      onNavigateToExpenses();
+                    }
+                  } else if (activity.type === 'meter' && onNavigateToWater) {
+                    onNavigateToWater();
+                  }
+                };
 
-                  <View style={styles.activityRight}>
-                    {activity.amount && (
-                      <Text style={styles.activityAmount}>{activity.amount}</Text>
-                    )}
-                    <StatusBadge
-                      status={activity.status}
-                      label={activity.statusLabel}
-                      size="sm"
-                      showDot={false}
-                    />
-                  </View>
-                </View>
-              ))}
+                return (
+                  <Pressable
+                    key={activity.id}
+                    onPress={handleActivityPress}
+                    style={[
+                      styles.activityItem,
+                      index === getSocietyActivities().length - 1 && styles.activityItemLast,
+                    ]}
+                  >
+                    <View style={styles.activityLeft}>
+                      <Text style={styles.activityTitle}>{activity.title}</Text>
+                      <Text style={styles.activityMeta}>
+                        {activity.flatOrUser} • {activity.timestamp}
+                      </Text>
+                    </View>
+
+                    <View style={styles.activityRight}>
+                      {activity.amount && (
+                        <Text style={styles.activityAmount}>{activity.amount}</Text>
+                      )}
+                      <StatusBadge
+                        status={activity.status}
+                        label={activity.statusLabel}
+                        size="sm"
+                        showDot={false}
+                      />
+                    </View>
+                  </Pressable>
+                );
+              })}
             </View>
           </Card>
         </View>

@@ -125,6 +125,7 @@ export interface SocietyItem {
   createdAt: string;
   status: 'active' | 'pending_setup' | 'archived';
   isCleanProduction?: boolean;
+  isDummy?: boolean;
 }
 
 export interface CreateSocietyPayload {
@@ -143,6 +144,7 @@ export interface CreateSocietyPayload {
   presidentEmail: string;
   presidentPhone: string;
   presidentFlatNumber: string;
+  isDummy?: boolean;
 }
 
 export type SocietyPresetType =

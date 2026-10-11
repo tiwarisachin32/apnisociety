@@ -15,6 +15,7 @@ import { borderRadius, colors, shadows, spacing, typography } from '../constants
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
 import { MOCK_USERS } from '../services/mockAuth';
+import { getActiveSocietyBlocks } from '../services/societyConfig';
 import {
   exportReportData,
   getDefaultersReport,
@@ -75,6 +76,11 @@ export default function ReportsScreen({
   const [period, setPeriod] = useState<ReportPeriod>('current_month');
   const [towerFilter, setTowerFilter] = useState<string>('all');
   const [agingFilter, setAgingFilter] = useState<'all' | '60_plus_days' | '31_60_days' | '0_30_days'>('all');
+
+  // Society Tower / Block Architecture
+  const configuredBlocks = getActiveSocietyBlocks();
+  const allBlocks = configuredBlocks.length > 0 ? configuredBlocks : ['Tower A'];
+  const hasMultipleBlocks = allBlocks.length > 1;
 
   // Data States
   const [kpis, setKpis] = useState<ExecutiveKPIs>(() => getExecutiveKPIs('current_month'));
@@ -341,20 +347,22 @@ export default function ReportsScreen({
           ))}
         </View>
 
-        <View style={styles.filterPillsRow}>
-          <Text style={styles.filterLabel}>Tower Block:</Text>
-          {['all', 'Tower A', 'Tower B', 'Tower C', 'Tower D'].map((t) => (
-            <Pressable
-              key={t}
-              onPress={() => setTowerFilter(t)}
-              style={[styles.filterChip, towerFilter === t && styles.filterChipActive]}
-            >
-              <Text style={[styles.filterChipText, towerFilter === t && styles.filterChipTextActive]}>
-                {t === 'all' ? 'All Towers' : t}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        {hasMultipleBlocks && (
+          <View style={styles.filterPillsRow}>
+            <Text style={styles.filterLabel}>Tower Block:</Text>
+            {['all', ...allBlocks].map((t) => (
+              <Pressable
+                key={t}
+                onPress={() => setTowerFilter(t)}
+                style={[styles.filterChip, towerFilter === t && styles.filterChipActive]}
+              >
+                <Text style={[styles.filterChipText, towerFilter === t && styles.filterChipTextActive]}>
+                  {t === 'all' ? 'All Towers' : t}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
       </Card>
 
       {/* Tabs */}

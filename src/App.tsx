@@ -31,6 +31,7 @@ import { borderRadius, colors, shadows, spacing, typography } from './constants/
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useResponsive } from './hooks/useResponsive';
 import { getSocietyConfig, subscribeToSocietyConfig } from './services/societyConfig';
+import { MOCK_USERS } from './services/mockAuth';
 import { User } from './types/auth';
 
 type TabKey =
@@ -167,7 +168,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     key: 'settings',
-    label: 'App Company Console',
+    label: 'Company Console',
     icon: '🏢',
     category: 'admin',
     requiredPermissions: [PERMISSIONS.SOCIETY_CREATE],
@@ -182,14 +183,22 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function isTabPermitted(tabKey: TabKey, user: User | null): boolean {
-  if (tabKey === 'login' || tabKey === 'dashboard') return true;
+  if (tabKey === 'login') return true;
   if (!user) return false;
-  if (tabKey === 'backend') {
-    return Boolean(user.isAppOwner || user.permissions.includes(PERMISSIONS.API_VIEW_DETAILS));
+
+  // Platform App Owner is dedicated strictly to Company Console
+  if (user.isAppOwner) {
+    return tabKey === 'settings';
   }
-  // Setup & Release / App Company Console is strictly restricted to App Owner
+
+  // Regular residents and committee members cannot access App Company Console
   if (tabKey === 'settings') {
-    return Boolean(user.isAppOwner);
+    return false;
+  }
+
+  if (tabKey === 'dashboard') return true;
+  if (tabKey === 'backend') {
+    return Boolean(user.permissions.includes(PERMISSIONS.API_VIEW_DETAILS));
   }
   const navItem = NAV_ITEMS.find((item) => item.key === tabKey);
   if (!navItem) return false;
@@ -206,12 +215,12 @@ export function isTabPermitted(tabKey: TabKey, user: User | null): boolean {
 }
 
 function AppContent() {
-  const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
+  const { user, isAuthenticated, isLoading, loginAsDemoUser, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState<TabKey>(() => (user?.isAppOwner ? 'settings' : 'dashboard'));
   const [showMoreModal, setShowMoreModal] = useState(false);
   const [showDevConsole, setShowDevConsole] = useState(false);
   const [targetRoleToEdit, setTargetRoleToEdit] = useState<string | null>(null);
   const [targetMemberToEdit, setTargetMemberToEdit] = useState<string | null>(null);
-  const { user, isAuthenticated, isLoading } = useAuth();
   const { isDesktop, isMobile } = useResponsive();
 
   // Hidden developer shortcut: Ctrl + Shift + D or Cmd + Shift + D (Restricted to App Owner)
@@ -234,13 +243,15 @@ function AppContent() {
   const permittedNavItems = NAV_ITEMS.filter((item) => isTabPermitted(item.key, user));
 
   // Determine primary mobile tabs (max 4 permitted items)
-  const preferredMobileKeys: TabKey[] = [
-    'dashboard',
-    'maintenance',
-    'water',
-    'complaints',
-    'notifications',
-  ];
+  const preferredMobileKeys: TabKey[] = user?.isAppOwner
+    ? ['settings']
+    : [
+        'dashboard',
+        'maintenance',
+        'water',
+        'complaints',
+        'notifications',
+      ];
   const mobilePrimaryTabs = preferredMobileKeys
     .filter((key) => isTabPermitted(key, user))
     .slice(0, 4);
@@ -257,10 +268,16 @@ function AppContent() {
   // Drawer items are any permitted items not already on primary bottom bar
   const moreNavItems = permittedNavItems.filter((item) => !mobilePrimaryTabs.includes(item.key));
 
-  // Sync / Guard: If current tab is not permitted for the active user, safely return to dashboard
+  // Sync / Guard: If current tab is not permitted for the active user, safely return to dashboard or settings
   useEffect(() => {
-    if (!isTabPermitted(activeTab, user)) {
-      setActiveTab('dashboard');
+    if (user?.isAppOwner) {
+      if (activeTab !== 'settings') {
+        setActiveTab('settings');
+      }
+    } else {
+      if (!isTabPermitted(activeTab, user)) {
+        setActiveTab('dashboard');
+      }
     }
   }, [user, activeTab]);
 
@@ -309,25 +326,38 @@ function AppContent() {
       <View style={styles.topHeader}>
         <View style={styles.brandRow}>
           <Pressable
-            onPress={() => handleNav('dashboard')}
+            onPress={() => handleNav(user?.isAppOwner ? 'settings' : 'dashboard')}
             style={styles.brandLogoContainer}
-            accessibilityLabel="ApniSociety Home"
+            accessibilityLabel={user?.isAppOwner ? "ApniSociety Company Console" : "ApniSociety Home"}
           >
             <AppLogo size={36} variant="mark" />
             <View style={styles.brandTextGroup}>
               <View style={styles.brandTitleRow}>
                 <Text style={styles.brandTitle}>{APP_NAME}</Text>
+                {user?.isAppOwner && (
+                  <View style={{ marginLeft: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: '#0F2C59', borderRadius: borderRadius.sm }}>
+                    <Text style={{ fontSize: 9, color: '#FFFFFF', fontWeight: 'bold' }}>COMPANY CONSOLE</Text>
+                  </View>
+                )}
               </View>
               <View style={styles.societySubtitleRow}>
-                <SocietyLogo
-                  societyName={societyConfig.societyName}
-                  societyCode={user?.societyCode || societyConfig.societyCode}
-                  logoUrl={societyConfig.logoUrl}
-                  size="xs"
-                />
-                <Text style={styles.brandSubtitle} numberOfLines={1}>
-                  {user?.societyCode ? `${user.societyCode} • ${societyConfig.societyName}` : societyConfig.societyName}
-                </Text>
+                {user?.isAppOwner ? (
+                  <Text style={[styles.brandSubtitle, { color: '#065F46', fontWeight: '600' }]} numberOfLines={1}>
+                    🏢 Platform Company Headquarters
+                  </Text>
+                ) : (
+                  <>
+                    <SocietyLogo
+                      societyName={societyConfig.societyName}
+                      societyCode={user?.societyCode || societyConfig.societyCode}
+                      logoUrl={societyConfig.logoUrl}
+                      size="xs"
+                    />
+                    <Text style={styles.brandSubtitle} numberOfLines={1}>
+                      {user?.societyCode ? `${user.societyCode} • ${societyConfig.societyName}` : societyConfig.societyName}
+                    </Text>
+                  </>
+                )}
               </View>
             </View>
           </Pressable>
@@ -335,22 +365,24 @@ function AppContent() {
 
         {/* User Persona Pill & Switcher */}
         <View style={styles.headerRight}>
-          {Boolean(user?.isAppOwner) && (
+          {!user?.isAppOwner && (
             <Pressable
-              onPress={() => handleNav('settings')}
-              style={[
-                styles.headerSetupBtn,
-                activeTab === 'settings' && styles.headerSetupBtnActive,
-              ]}
-              accessibilityLabel="App Company Console"
+              onPress={() => loginAsDemoUser(MOCK_USERS[0])}
+              style={{
+                backgroundColor: '#EFF6FF',
+                borderWidth: 1,
+                borderColor: '#93C5FD',
+                borderRadius: borderRadius.full,
+                paddingVertical: 5,
+                paddingHorizontal: 10,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+              }}
+              accessibilityLabel="Return to App Owner Company Console"
             >
-              <Text
-                style={[
-                  styles.headerSetupBtnText,
-                  activeTab === 'settings' && styles.headerSetupBtnTextActive,
-                ]}
-              >
-                🏢 App Company Console
+              <Text style={{ fontSize: typography.sizes.xs, fontWeight: '700', color: '#1D4ED8' }}>
+                👑 Return to Company Console
               </Text>
             </Pressable>
           )}
@@ -370,7 +402,7 @@ function AppContent() {
                   {user.roleTitle} {user.flatNumber ? `• ${user.flatNumber}` : ''}
                 </Text>
               </View>
-              {Boolean(user.isAppOwner) && <Text style={styles.switchIcon}>⇄</Text>}
+              <Text style={styles.switchIcon}>⇄</Text>
             </Pressable>
           )}
         </View>

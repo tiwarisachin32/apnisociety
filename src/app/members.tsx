@@ -17,6 +17,7 @@ import { useResponsive } from '../hooks/useResponsive';
 import { MOCK_USERS } from '../services/mockAuth';
 import {
   addMember,
+  addUnit,
   deleteMember,
   getAllMembers,
   getAllStaff,
@@ -26,8 +27,10 @@ import {
   rejectMember,
   resetDemoMembers,
   updateMember,
+  updateUnit,
   verifyMember,
 } from '../services/mockMembers';
+import { getActiveSocietyBlocks, getSocietyConfig } from '../services/societyConfig';
 import { subscribeToDataReset } from '../services/dataManager';
 import {
   CommitteeRole,
@@ -112,9 +115,32 @@ export default function MembersScreen({
   const [typeFilter, setTypeFilter] = useState<'all' | ResidentType | 'pending_kyc'>('all');
   const [towerFilter, setTowerFilter] = useState<string>('all');
 
+  // Tower & Block Architecture Detection
+  const societyConfig = getSocietyConfig();
+  const configuredBlocks = getActiveSocietyBlocks();
+  const unitBlocks = Array.from(new Set(units.map((u) => u.block).filter(Boolean)));
+  const memberBlocks = Array.from(new Set(members.map((m) => m.block).filter(Boolean)));
+  const allBlocks = Array.from(new Set([...configuredBlocks, ...unitBlocks, ...memberBlocks]));
+  const hasMultipleBlocks = allBlocks.length > 1;
+
   // Occupancy Tower Filter
   const [occupancyTowerFilter, setOccupancyTowerFilter] = useState<string>('all');
   const [occupancyStatusFilter, setOccupancyStatusFilter] = useState<'all' | OccupancyStatus>('all');
+
+  // Flat Configuration Modal State (President / Committee)
+  const [showEditFlatModal, setShowEditFlatModal] = useState(false);
+  const [editingFlatId, setEditingFlatId] = useState<string | null>(null);
+  const [flatNumberInput, setFlatNumberInput] = useState('');
+  const [flatBlockInput, setFlatBlockInput] = useState('Tower A');
+  const [flatFloorInput, setFlatFloorInput] = useState('1');
+  const [flatAreaInput, setFlatAreaInput] = useState('1250');
+  const [flatOccupancyStatus, setFlatOccupancyStatus] = useState<OccupancyStatus>('owner_occupied');
+  const [flatResidentName, setFlatResidentName] = useState('');
+  const [flatOwnerName, setFlatOwnerName] = useState('');
+  const [flatOwnerContact, setFlatOwnerContact] = useState('');
+  const [flatParkingSlots, setFlatParkingSlots] = useState('');
+  const [flatMaintenanceDue, setFlatMaintenanceDue] = useState('0');
+  const [isSavingFlat, setIsSavingFlat] = useState(false);
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -295,6 +321,88 @@ export default function MembersScreen({
     showToast('📥 Society Member Directory exported to CSV/PDF (Simulated download)');
   };
 
+  // Open Edit / Add Flat Modal
+  const handleOpenEditFlat = (unit?: SocietyUnit) => {
+    if (unit) {
+      setEditingFlatId(unit.id);
+      setFlatNumberInput(unit.flatNumber);
+      setFlatBlockInput(unit.block || allBlocks[0] || 'Tower A');
+      setFlatFloorInput(String(unit.floor || 1));
+      setFlatAreaInput(String(unit.areaSqFt || 1200));
+      setFlatOccupancyStatus(unit.occupancyStatus);
+      setFlatResidentName(unit.primaryResidentName || '');
+      setFlatOwnerName(unit.ownerName || '');
+      setFlatOwnerContact(unit.ownerContact || '');
+      setFlatParkingSlots(unit.parkingSlots?.join(', ') || '');
+      setFlatMaintenanceDue(String(unit.maintenanceDueAmount || 0));
+    } else {
+      setEditingFlatId(null);
+      setFlatNumberInput('');
+      setFlatBlockInput(allBlocks[0] || 'Tower A');
+      setFlatFloorInput('1');
+      setFlatAreaInput('1200');
+      setFlatOccupancyStatus('owner_occupied');
+      setFlatResidentName('');
+      setFlatOwnerName('');
+      setFlatOwnerContact('');
+      setFlatParkingSlots('');
+      setFlatMaintenanceDue('0');
+    }
+    setShowEditFlatModal(true);
+  };
+
+  // Save Flat Details Handler
+  const handleSaveFlat = async () => {
+    if (!flatNumberInput.trim()) {
+      showToast('⚠️ Please enter a flat number');
+      return;
+    }
+    setIsSavingFlat(true);
+    try {
+      const parkingArray = flatParkingSlots
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean);
+
+      if (editingFlatId) {
+        updateUnit(editingFlatId, {
+          flatNumber: flatNumberInput.trim(),
+          block: flatBlockInput.trim(),
+          floor: parseInt(flatFloorInput, 10) || 1,
+          areaSqFt: parseInt(flatAreaInput, 10) || 1200,
+          occupancyStatus: flatOccupancyStatus,
+          primaryResidentName: flatResidentName.trim() || undefined,
+          ownerName: flatOwnerName.trim() || undefined,
+          ownerContact: flatOwnerContact.trim() || undefined,
+          parkingSlots: parkingArray,
+          maintenanceDueAmount: parseFloat(flatMaintenanceDue) || 0,
+        });
+        showToast(`✓ Flat ${flatNumberInput.trim()} details updated successfully!`);
+      } else {
+        addUnit({
+          flatNumber: flatNumberInput.trim(),
+          block: flatBlockInput.trim(),
+          floor: parseInt(flatFloorInput, 10) || 1,
+          areaSqFt: parseInt(flatAreaInput, 10) || 1200,
+          occupancyStatus: flatOccupancyStatus,
+          primaryResidentName: flatResidentName.trim() || undefined,
+          ownerName: flatOwnerName.trim() || undefined,
+          ownerContact: flatOwnerContact.trim() || undefined,
+          parkingSlots: parkingArray,
+          maintenanceDueAmount: parseFloat(flatMaintenanceDue) || 0,
+        });
+        showToast(`✓ New flat ${flatNumberInput.trim()} added successfully!`);
+      }
+      reloadAllData();
+      setShowEditFlatModal(false);
+      setSelectedUnit(null);
+    } catch {
+      showToast('⚠️ Failed to save flat details.');
+    } finally {
+      setIsSavingFlat(false);
+    }
+  };
+
   // Filter Members
   const filteredMembers = members.filter((m) => {
     if (typeFilter === 'pending_kyc') {
@@ -304,7 +412,7 @@ export default function MembersScreen({
       if (typeFilter !== 'committee' && m.residentType !== typeFilter) return false;
     }
 
-    if (towerFilter !== 'all' && m.block !== towerFilter) return false;
+    if (hasMultipleBlocks && towerFilter !== 'all' && m.block !== towerFilter) return false;
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -324,7 +432,7 @@ export default function MembersScreen({
 
   // Filter Units
   const filteredUnits = units.filter((u) => {
-    if (occupancyTowerFilter !== 'all' && u.block !== occupancyTowerFilter) return false;
+    if (hasMultipleBlocks && occupancyTowerFilter !== 'all' && u.block !== occupancyTowerFilter) return false;
     if (occupancyStatusFilter !== 'all' && u.occupancyStatus !== occupancyStatusFilter) return false;
     return true;
   });
@@ -570,21 +678,23 @@ export default function MembersScreen({
               ))}
             </View>
 
-            {/* Tower Filter Row */}
-            <View style={styles.filterPillsRow}>
-              <Text style={styles.filterLabel}>Tower / Block:</Text>
-              {['all', 'Tower A', 'Tower B', 'Tower C', 'Tower D'].map((t) => (
-                <Pressable
-                  key={t}
-                  onPress={() => setTowerFilter(t)}
-                  style={[styles.filterChip, towerFilter === t && styles.filterChipActive]}
-                >
-                  <Text style={[styles.filterChipText, towerFilter === t && styles.filterChipTextActive]}>
-                    {t === 'all' ? 'All Towers' : t}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            {/* Tower Filter Row - only shown if multiple blocks exist */}
+            {hasMultipleBlocks && (
+              <View style={styles.filterPillsRow}>
+                <Text style={styles.filterLabel}>Tower / Block:</Text>
+                {['all', ...allBlocks].map((t) => (
+                  <Pressable
+                    key={t}
+                    onPress={() => setTowerFilter(t)}
+                    style={[styles.filterChip, towerFilter === t && styles.filterChipActive]}
+                  >
+                    <Text style={[styles.filterChipText, towerFilter === t && styles.filterChipTextActive]}>
+                      {t === 'all' ? 'All Towers' : t}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </Card>
 
           {/* Members List */}
@@ -810,20 +920,22 @@ export default function MembersScreen({
         <View style={styles.tabContent}>
           {/* Occupancy Filters */}
           <Card style={styles.filtersCard}>
-            <View style={styles.filterPillsRow}>
-              <Text style={styles.filterLabel}>Tower Block:</Text>
-              {['all', 'Tower A', 'Tower B', 'Tower C', 'Tower D'].map((t) => (
-                <Pressable
-                  key={t}
-                  onPress={() => setOccupancyTowerFilter(t)}
-                  style={[styles.filterChip, occupancyTowerFilter === t && styles.filterChipActive]}
-                >
-                  <Text style={[styles.filterChipText, occupancyTowerFilter === t && styles.filterChipTextActive]}>
-                    {t === 'all' ? 'All Towers' : t}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            {hasMultipleBlocks && (
+              <View style={styles.filterPillsRow}>
+                <Text style={styles.filterLabel}>Tower Block:</Text>
+                {['all', ...allBlocks].map((t) => (
+                  <Pressable
+                    key={t}
+                    onPress={() => setOccupancyTowerFilter(t)}
+                    style={[styles.filterChip, occupancyTowerFilter === t && styles.filterChipActive]}
+                  >
+                    <Text style={[styles.filterChipText, occupancyTowerFilter === t && styles.filterChipTextActive]}>
+                      {t === 'all' ? 'All Towers' : t}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
 
             <View style={styles.filterPillsRow}>
               <Text style={styles.filterLabel}>Occupancy Status:</Text>
@@ -847,6 +959,26 @@ export default function MembersScreen({
               ))}
             </View>
           </Card>
+
+          {/* Header Action Bar for Flats Configuration */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md, flexWrap: 'wrap', gap: 8 }}>
+            <View>
+              <Text style={{ fontSize: typography.sizes.base, fontWeight: 'bold', color: colors.neutral[900] }}>
+                Society Residential Flats & Towers ({filteredUnits.length} of {units.length} Flats)
+              </Text>
+              <Text style={{ fontSize: typography.sizes.xs, color: colors.neutral[500] }}>
+                President & Committee Flat Config Desk • Manage floor plans, occupancy, & maintenance dues
+              </Text>
+            </View>
+            {canManage && (
+              <Button
+                title="+ Add Flat Unit"
+                variant="primary"
+                size="sm"
+                onPress={() => handleOpenEditFlat()}
+              />
+            )}
+          </View>
 
           {/* Units Grid */}
           <View style={styles.unitsGrid}>
@@ -908,13 +1040,24 @@ export default function MembersScreen({
                     </View>
                   </View>
 
-                  <Button
-                    title="Inspect Unit"
-                    variant="outline"
-                    size="sm"
-                    onPress={() => setSelectedUnit(unit)}
-                    style={{ marginTop: spacing.sm }}
-                  />
+                  <View style={{ flexDirection: 'row', gap: 6, marginTop: spacing.sm }}>
+                    <Button
+                      title="Inspect"
+                      variant="outline"
+                      size="sm"
+                      style={{ flex: 1 }}
+                      onPress={() => setSelectedUnit(unit)}
+                    />
+                    {canManage && (
+                      <Button
+                        title="✏️ Edit Flat"
+                        variant="secondary"
+                        size="sm"
+                        style={{ flex: 1 }}
+                        onPress={() => handleOpenEditFlat(unit)}
+                      />
+                    )}
+                  </View>
                 </Card>
               );
             })}
@@ -1791,9 +1934,22 @@ export default function MembersScreen({
                     onPress={() => setSelectedUnit(null)}
                     style={{ flex: 1 }}
                   />
+                  {canManage && (
+                    <Button
+                      title="✏️ Edit Flat Details"
+                      variant="secondary"
+                      size="md"
+                      onPress={() => {
+                        const target = selectedUnit;
+                        setSelectedUnit(null);
+                        handleOpenEditFlat(target);
+                      }}
+                      style={{ flex: 1 }}
+                    />
+                  )}
                   {onNavigateToMaintenance && (
                     <Button
-                      title="View Maintenance Ledger"
+                      title="Maintenance Ledger"
                       variant="primary"
                       size="md"
                       onPress={() => {
@@ -1806,6 +1962,189 @@ export default function MembersScreen({
                 </View>
               </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: CONFIGURE / EDIT FLAT DETAILS (PRESIDENT / COMMITTEE) */}
+      {/* ========================================================================= */}
+      <Modal visible={showEditFlatModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>
+                  {editingFlatId ? `Configure Flat ${flatNumberInput}` : 'Add New Residential Flat'}
+                </Text>
+                <Text style={styles.modalSubtitle}>
+                  President & Committee Architecture Desk • Set area, block, occupancy, & maintenance dues
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setShowEditFlatModal(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              {/* Flat Number & Block */}
+              <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile]}>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Flat Number *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="e.g. A-101, B-402"
+                    value={flatNumberInput}
+                    onChangeText={setFlatNumberInput}
+                  />
+                </View>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Tower / Block *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="e.g. Tower A"
+                    value={flatBlockInput}
+                    onChangeText={setFlatBlockInput}
+                  />
+                </View>
+              </View>
+
+              {/* Floor & Area */}
+              <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile]}>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Floor Number</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    keyboardType="numeric"
+                    placeholder="e.g. 4"
+                    value={flatFloorInput}
+                    onChangeText={setFlatFloorInput}
+                  />
+                </View>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Carpet / Super Area (Sq.Ft)</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    keyboardType="numeric"
+                    placeholder="e.g. 1250"
+                    value={flatAreaInput}
+                    onChangeText={setFlatAreaInput}
+                  />
+                </View>
+              </View>
+
+              {/* Occupancy Status */}
+              <Text style={styles.inputLabel}>Occupancy Status *</Text>
+              <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md, flexWrap: 'wrap' }}>
+                {(
+                  [
+                    { id: 'owner_occupied', label: 'Owner Occupied' },
+                    { id: 'rented', label: 'Rented (Tenant)' },
+                    { id: 'vacant', label: 'Vacant' },
+                  ] as const
+                ).map((st) => (
+                  <Pressable
+                    key={st.id}
+                    onPress={() => setFlatOccupancyStatus(st.id)}
+                    style={[
+                      styles.filterChip,
+                      flatOccupancyStatus === st.id && styles.filterChipActive,
+                      { paddingVertical: 8, paddingHorizontal: 12 },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        flatOccupancyStatus === st.id && styles.filterChipTextActive,
+                      ]}
+                    >
+                      {st.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Resident Name & Owner Details */}
+              <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile]}>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Primary Resident Name</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="e.g. Rahul Sharma"
+                    value={flatResidentName}
+                    onChangeText={setFlatResidentName}
+                  />
+                </View>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Flat Owner Name</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="e.g. Sanjay Verma"
+                    value={flatOwnerName}
+                    onChangeText={setFlatOwnerName}
+                  />
+                </View>
+              </View>
+
+              <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile]}>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Owner Contact Phone</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    keyboardType="phone-pad"
+                    placeholder="e.g. +91 98201 11223"
+                    value={flatOwnerContact}
+                    onChangeText={setFlatOwnerContact}
+                  />
+                </View>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Assigned Parking Slot(s)</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="e.g. P-A101, P-B402"
+                    value={flatParkingSlots}
+                    onChangeText={setFlatParkingSlots}
+                  />
+                </View>
+              </View>
+
+              {/* Maintenance Dues Amount */}
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={styles.inputLabel}>Current Maintenance Dues Outstanding (₹)</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  keyboardType="numeric"
+                  placeholder="e.g. 0 or 3850"
+                  value={flatMaintenanceDue}
+                  onChangeText={setFlatMaintenanceDue}
+                />
+                <Text style={{ fontSize: typography.sizes.xs, color: colors.neutral[500], marginTop: 4 }}>
+                  President can configure flat dues. Future monthly invoices follow the configured society tariff.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <Button
+                title="Cancel"
+                variant="outline"
+                size="md"
+                onPress={() => setShowEditFlatModal(false)}
+                style={{ flex: 1 }}
+                disabled={isSavingFlat}
+              />
+              <Button
+                title={isSavingFlat ? 'Saving...' : editingFlatId ? 'Save Flat Details ✓' : 'Create Flat Unit +'}
+                variant="primary"
+                size="md"
+                onPress={handleSaveFlat}
+                style={{ flex: 1 }}
+                disabled={isSavingFlat}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -2731,9 +3070,38 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     marginBottom: spacing.sm,
   },
+  modalCloseBtn: {
+    padding: spacing.xs,
+  },
+  modalCloseText: {
+    fontSize: typography.sizes.lg,
+    color: colors.neutral[500],
+    fontWeight: typography.weights.bold,
+  },
+  modalBody: {
+    paddingVertical: spacing.md,
+  },
   formTwoCol: {
     flexDirection: 'row',
     gap: spacing.md,
+  },
+  inputLabel: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.semibold,
+    color: colors.text.primary,
+    marginBottom: 4,
+    marginTop: spacing.xs,
+  },
+  twoColRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  twoColRowMobile: {
+    flexDirection: 'column',
+    gap: 0,
+  },
+  twoCol: {
+    flex: 1,
   },
   typeSelectorRow: {
     flexDirection: 'row',

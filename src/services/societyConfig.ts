@@ -636,6 +636,7 @@ export function createSociety(payload: CreateSocietyPayload): {
     createdAt: new Date().toISOString(),
     status: 'active',
     isCleanProduction: true,
+    isDummy: Boolean(payload.isDummy),
   };
 
   // 2. Generate towers based on towersCount
@@ -787,4 +788,42 @@ export function switchActiveSociety(societyId: string): SocietyConfig {
   }
 
   return targetConfig;
+}
+
+/**
+ * Deletes a dummy or custom society from the platform (App Owner only).
+ */
+export function deleteSociety(societyId: string): boolean {
+  if (societyId === 'soc-01') return false; // Protect root society
+  const current = getAllSocieties();
+  const filtered = current.filter((s) => s.id !== societyId);
+  saveAllSocieties(filtered);
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem(`apnisociety_custom_config_${societyId}`);
+      // Remove any member records, etc.
+      Object.keys(localStorage).forEach((key) => {
+        if (key.includes(societyId)) {
+          localStorage.removeItem(key);
+        }
+      });
+      // If active society was deleted, revert to soc-01
+      if (getActiveSocietyId() === societyId) {
+        switchActiveSociety('soc-01');
+      }
+    } catch {}
+  }
+  return true;
+}
+
+/**
+ * Returns distinct active blocks/towers configured for the active society.
+ */
+export function getActiveSocietyBlocks(): string[] {
+  const config = getSocietyConfig();
+  const activeTowers = (config.towers || []).filter((t) => t.active !== false);
+  if (activeTowers.length > 0) {
+    return activeTowers.map((t) => t.name);
+  }
+  return [];
 }

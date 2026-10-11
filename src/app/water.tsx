@@ -15,6 +15,7 @@ import { borderRadius, colors, shadows, spacing, typography } from '../constants
 import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
 import { subscribeToDataReset } from '../services/dataManager';
+import { getActiveSocietyBlocks, getSocietyConfig } from '../services/societyConfig';
 import {
   calculateWaterBill,
   getHistoricalConsumption,
@@ -66,6 +67,12 @@ export default function WaterScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBlock, setSelectedBlock] = useState('all');
   const [selectedFilterStatus, setSelectedFilterStatus] = useState('all');
+
+  // Society & Tower / Block Architecture
+  const configuredBlocks = getActiveSocietyBlocks();
+  const readingBlocks = Array.from(new Set(readings.map((r) => r.block).filter(Boolean)));
+  const allBlocks = Array.from(new Set([...configuredBlocks, ...readingBlocks]));
+  const hasMultipleBlocks = allBlocks.length > 1;
 
   // Record Meter Reading Modal State
   const [recordingModalReading, setRecordingModalReading] = useState<WaterMeterReading | null>(null);
@@ -128,7 +135,10 @@ export default function WaterScreen() {
       r.meterNumber.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesBlock =
-      selectedBlock === 'all' || r.block.toLowerCase().includes(selectedBlock.toLowerCase());
+      !hasMultipleBlocks ||
+      selectedBlock === 'all' ||
+      r.block.toLowerCase().includes(selectedBlock.toLowerCase()) ||
+      selectedBlock.toLowerCase().includes(r.block.toLowerCase());
 
     const matchesStatus =
       selectedFilterStatus === 'all' || r.status === selectedFilterStatus;
@@ -587,28 +597,30 @@ export default function WaterScreen() {
               />
             </View>
 
-            {/* Block Chips */}
-            <View style={styles.blockFiltersRow}>
-              {['all', 'Tower A', 'Tower B', 'Tower C', 'Tower D'].map((block) => (
-                <Pressable
-                  key={block}
-                  onPress={() => setSelectedBlock(block)}
-                  style={[
-                    styles.blockChip,
-                    selectedBlock === block && styles.blockChipActive,
-                  ]}
-                >
-                  <Text
+            {/* Block Chips - only shown if multiple blocks exist */}
+            {hasMultipleBlocks && (
+              <View style={styles.blockFiltersRow}>
+                {['all', ...allBlocks].map((block) => (
+                  <Pressable
+                    key={block}
+                    onPress={() => setSelectedBlock(block)}
                     style={[
-                      styles.blockChipText,
-                      selectedBlock === block && styles.blockChipTextActive,
+                      styles.blockChip,
+                      selectedBlock === block && styles.blockChipActive,
                     ]}
                   >
-                    {block === 'all' ? 'All Wings' : block}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+                    <Text
+                      style={[
+                        styles.blockChipText,
+                        selectedBlock === block && styles.blockChipTextActive,
+                      ]}
+                    >
+                      {block === 'all' ? 'All Wings' : block}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* Flats Meter Reading List */}

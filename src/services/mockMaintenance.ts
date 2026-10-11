@@ -5,8 +5,9 @@ import {
   NewBillingCyclePayload,
 } from '../types/maintenance';
 import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
-import { getActiveSocietyId } from './societyConfig';
+import { getActiveSocietyId, getSocietyConfig, saveSocietyConfig } from './societyConfig';
 import { getStoredMembers, getStoredUnits } from './mockMembers';
+import { SocietyConfig } from '../types/societyConfig';
 
 const STORAGE_KEY_BILLS = 'apnisociety_maintenance_bills';
 
@@ -574,4 +575,65 @@ export async function generateNewBillingCycle(payload: NewBillingCyclePayload): 
 
   saveBills(bills);
   return addedCount || flatsToBill.length;
+}
+
+/**
+ * Allows the Society President / Committee to configure maintenance tariff
+ * and update pending bills.
+ */
+export function updateMaintenanceTariff(
+  updates: Partial<SocietyConfig['maintenance']>,
+  updateExistingPendingBills: boolean = true
+): void {
+  const config = getSocietyConfig();
+  const updatedConfig: SocietyConfig = {
+    ...config,
+    maintenance: {
+      ...config.maintenance,
+      ...updates,
+    },
+  };
+  saveSocietyConfig(updatedConfig);
+
+  if (updateExistingPendingBills) {
+    const bills = getStoredBills();
+    const newBaseRate = updates.baseMonthlyRate !== undefined ? Number(updates.baseMonthlyRate) : config.maintenance.baseMonthlyRate;
+    const newSinkingFund = updates.sinkingFundRate !== undefined ? Number(updates.sinkingFundRate) : config.maintenance.sinkingFundRate;
+    const newSecurity = updates.securityFee !== undefined ? Number(updates.securityFee) : config.maintenance.securityFee;
+    const newCommon = updates.commonFacilitiesRate !== undefined ? Number(updates.commonFacilitiesRate) : config.maintenance.commonFacilitiesRate;
+
+    const updatedBills = bills.map((b) => {
+      if (b.status === 'pending') {
+        const totalAmount = newBaseRate + newSinkingFund + newCommon + newSecurity + (b.parkingFee || 0);
+        return {
+          ...b,
+          baseRate: newBaseRate,
+          sinkingFund: newSinkingFund,
+          securityHousekeeping: newSecurity,
+          commonFacilities: newCommon,
+          totalAmount,
+        };
+      }
+      return b;
+    });
+    saveBills(updatedBills);
+  }
+}
+
+/**
+ * Updates an individual bill details (e.g. adjust bill amount or due date for a specific flat)
+ */
+export function updateSingleBill(billId: string, updates: Partial<MaintenanceBill>): MaintenanceBill {
+  const bills = getStoredBills();
+  const index = bills.findIndex((b) => b.id === billId);
+  if (index === -1) {
+    throw new Error('Bill not found');
+  }
+  const updated: MaintenanceBill = {
+    ...bills[index],
+    ...updates,
+  };
+  bills[index] = updated;
+  saveBills(bills);
+  return updated;
 }

@@ -10,6 +10,7 @@ import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
 import { getActiveSocietyId } from './societyConfig';
 
 const STORAGE_KEY_BOOKINGS = 'apnisociety_hall_bookings_v1';
+const STORAGE_KEY_FACILITIES = 'apnisociety_hall_facilities_v1';
 
 export const SOCIETY_FACILITIES: SocietyFacility[] = [
   {
@@ -272,6 +273,60 @@ export const INITIAL_BOOKINGS: HallBooking[] = [
 ];
 
 let inMemoryBookings = [...INITIAL_BOOKINGS];
+let inMemoryFacilities = [...SOCIETY_FACILITIES];
+
+export function getStoredFacilities(): SocietyFacility[] {
+  if (typeof window !== 'undefined') {
+    try {
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_FACILITIES, activeId);
+      const stored = localStorage.getItem(storageKey);
+      if (stored !== null) return JSON.parse(stored);
+    } catch {}
+  }
+  return inMemoryFacilities;
+}
+
+export function saveFacilities(facilities: SocietyFacility[]): void {
+  inMemoryFacilities = facilities;
+  if (typeof window !== 'undefined') {
+    try {
+      const activeId = getActiveSocietyId();
+      const storageKey = getSocietyStorageKey(STORAGE_KEY_FACILITIES, activeId);
+      localStorage.setItem(storageKey, JSON.stringify(facilities));
+    } catch {}
+  }
+}
+
+/**
+ * Update rates, fees, or capacity for a specific clubhouse venue/facility.
+ */
+export function updateFacilityTariff(
+  facilityId: FacilityType,
+  updates: Partial<SocietyFacility>
+): SocietyFacility[] {
+  const current = getStoredFacilities();
+  const updated = current.map((f) => {
+    if (f.id === facilityId) {
+      return {
+        ...f,
+        ...updates,
+        rates: {
+          ...f.rates,
+          ...(updates.rates || {}),
+        },
+      };
+    }
+    return f;
+  });
+  saveFacilities(updated);
+  return updated;
+}
+
+export function resetFacilitiesToDefault(): SocietyFacility[] {
+  saveFacilities(SOCIETY_FACILITIES);
+  return SOCIETY_FACILITIES;
+}
 
 function getStoredBookings(): HallBooking[] {
   if (typeof window !== 'undefined') {
@@ -376,7 +431,8 @@ export async function createHallBooking(
     throw new Error('This venue slot is already booked for the selected date. Please pick another slot or date.');
   }
 
-  const facility = SOCIETY_FACILITIES.find((f) => f.id === payload.facilityId)!;
+  const facilities = getStoredFacilities();
+  const facility = facilities.find((f) => f.id === payload.facilityId) || SOCIETY_FACILITIES.find((f) => f.id === payload.facilityId)!;
   const rentAmount = facility.rates[payload.slot];
   const securityDeposit = facility.securityDeposit;
   const cleaningFee = facility.cleaningFee;

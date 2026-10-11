@@ -21,7 +21,10 @@ import {
   getReceiptForBill,
   markBillOfflinePaid,
   payMaintenanceBill,
+  updateMaintenanceTariff,
+  updateSingleBill,
 } from '../services/mockMaintenance';
+import { getActiveSocietyBlocks, getSocietyConfig } from '../services/societyConfig';
 import { isRealDataMode, subscribeToDataReset } from '../services/dataManager';
 import {
   MaintenanceBill,
@@ -59,6 +62,33 @@ export default function MaintenanceScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBlock, setSelectedBlock] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+
+  // Society & Tower / Block Architecture
+  const societyConfig = getSocietyConfig();
+  const configuredBlocks = getActiveSocietyBlocks();
+  const billBlocks = Array.from(new Set(bills.map((b) => b.block).filter(Boolean)));
+  const allBlocks = Array.from(new Set([...configuredBlocks, ...billBlocks]));
+  const hasMultipleBlocks = allBlocks.length > 1;
+
+  // President Maintenance Tariff Configuration State
+  const [showTariffModal, setShowTariffModal] = useState(false);
+  const [tariffBaseRate, setTariffBaseRate] = useState(() => String(societyConfig.maintenance?.baseMonthlyRate ?? 2200));
+  const [tariffMode, setTariffMode] = useState<'flat_fixed' | 'sqft_area' | 'hybrid'>(
+    () => societyConfig.maintenance?.calculationMode || 'flat_fixed'
+  );
+  const [tariffSqFtRate, setTariffSqFtRate] = useState(() => String(societyConfig.maintenance?.ratePerSqFt ?? 2.8));
+  const [tariffSinkingFund, setTariffSinkingFund] = useState(() => String(societyConfig.maintenance?.sinkingFundRate ?? 450));
+  const [tariffCommonFacilities, setTariffCommonFacilities] = useState(() => String(societyConfig.maintenance?.commonFacilitiesRate ?? 500));
+  const [tariffSecurityFee, setTariffSecurityFee] = useState(() => String(societyConfig.maintenance?.securityFee ?? 500));
+  const [tariffDueDay, setTariffDueDay] = useState(() => String(societyConfig.maintenance?.billingDueDay ?? 10));
+  const [tariffGraceDays, setTariffGraceDays] = useState(() => String(societyConfig.maintenance?.gracePeriodDays ?? 7));
+  const [tariffLateFee, setTariffLateFee] = useState(() => String(societyConfig.maintenance?.lateFeeValue ?? 200));
+  const [tariffBankName, setTariffBankName] = useState(() => societyConfig.maintenance?.bankName || 'HDFC Bank Ltd');
+  const [tariffBankAcc, setTariffBankAcc] = useState(() => societyConfig.maintenance?.bankAccountNumber || '50100412890142');
+  const [tariffBankIfsc, setTariffBankIfsc] = useState(() => societyConfig.maintenance?.bankIfscCode || 'HDFC0001042');
+  const [tariffUpiVpa, setTariffUpiVpa] = useState(() => societyConfig.maintenance?.upiVpa || 'shantiheights.rwa@hdfcbank');
+  const [tariffUpdatePendingBills, setTariffUpdatePendingBills] = useState(true);
+  const [isSavingTariff, setIsSavingTariff] = useState(false);
 
   // Modals State
   const [paymentModalBill, setPaymentModalBill] = useState<MaintenanceBill | null>(null);
@@ -116,13 +146,48 @@ export default function MaintenanceScreen() {
       b.billNumber.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesBlock =
-      selectedBlock === 'all' || b.block.toLowerCase().includes(selectedBlock.toLowerCase());
+      !hasMultipleBlocks ||
+      selectedBlock === 'all' ||
+      b.block.toLowerCase().includes(selectedBlock.toLowerCase()) ||
+      selectedBlock.toLowerCase().includes(b.block.toLowerCase());
 
     const matchesStatus =
       selectedStatus === 'all' || b.status === selectedStatus;
 
     return matchesSearch && matchesBlock && matchesStatus;
   });
+
+  // Handle Save Tariff by President
+  const handleSaveTariff = async () => {
+    setIsSavingTariff(true);
+    try {
+      updateMaintenanceTariff(
+        {
+          calculationMode: tariffMode,
+          baseMonthlyRate: Number(tariffBaseRate) || 0,
+          ratePerSqFt: Number(tariffSqFtRate) || 0,
+          sinkingFundRate: Number(tariffSinkingFund) || 0,
+          commonFacilitiesRate: Number(tariffCommonFacilities) || 0,
+          securityFee: Number(tariffSecurityFee) || 0,
+          billingDueDay: Number(tariffDueDay) || 10,
+          gracePeriodDays: Number(tariffGraceDays) || 7,
+          lateFeeValue: Number(tariffLateFee) || 200,
+          bankName: tariffBankName.trim(),
+          bankAccountNumber: tariffBankAcc.trim(),
+          bankIfscCode: tariffBankIfsc.trim(),
+          upiVpa: tariffUpiVpa.trim(),
+        },
+        tariffUpdatePendingBills
+      );
+      refreshData();
+      showToast('✓ Maintenance tariff successfully configured and updated!');
+      setShowTariffModal(false);
+    } catch {
+      showToast('⚠️ Failed to save maintenance tariff settings.');
+    } finally {
+      setIsSavingTariff(false);
+    }
+  };
 
   // Handle Online Payment Submit
   const handleConfirmPayment = async () => {
@@ -459,38 +524,65 @@ export default function MaintenanceScreen() {
               />
             </View>
 
-            <Button
-              title="+ Generate Next Billing Cycle"
-              variant="primary"
-              onPress={() => setShowNewCycleModal(true)}
-            />
+            <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
+              {canManage && (
+                <Button
+                  title="⚙️ Configure Tariff"
+                  variant="outline"
+                  onPress={() => {
+                    const cfg = getSocietyConfig();
+                    setTariffBaseRate(String(cfg.maintenance?.baseMonthlyRate ?? 2200));
+                    setTariffMode(cfg.maintenance?.calculationMode || 'flat_fixed');
+                    setTariffSqFtRate(String(cfg.maintenance?.ratePerSqFt ?? 2.8));
+                    setTariffSinkingFund(String(cfg.maintenance?.sinkingFundRate ?? 450));
+                    setTariffCommonFacilities(String(cfg.maintenance?.commonFacilitiesRate ?? 500));
+                    setTariffSecurityFee(String(cfg.maintenance?.securityFee ?? 500));
+                    setTariffDueDay(String(cfg.maintenance?.billingDueDay ?? 10));
+                    setTariffGraceDays(String(cfg.maintenance?.gracePeriodDays ?? 7));
+                    setTariffLateFee(String(cfg.maintenance?.lateFeeValue ?? 200));
+                    setTariffBankName(cfg.maintenance?.bankName || 'HDFC Bank Ltd');
+                    setTariffBankAcc(cfg.maintenance?.bankAccountNumber || '50100412890142');
+                    setTariffBankIfsc(cfg.maintenance?.bankIfscCode || 'HDFC0001042');
+                    setTariffUpiVpa(cfg.maintenance?.upiVpa || 'shantiheights.rwa@hdfcbank');
+                    setShowTariffModal(true);
+                  }}
+                />
+              )}
+              <Button
+                title="+ Generate Next Billing Cycle"
+                variant="primary"
+                onPress={() => setShowNewCycleModal(true)}
+              />
+            </View>
           </View>
 
           {/* Filters Row: Blocks & Status */}
           <View style={styles.filtersRow}>
-            {/* Block filters */}
-            <View style={styles.filterGroup}>
-              <Text style={styles.filterGroupLabel}>Block:</Text>
-              {['all', 'Tower A', 'Tower B', 'Tower C', 'Tower D'].map((block) => (
-                <Pressable
-                  key={block}
-                  onPress={() => setSelectedBlock(block)}
-                  style={[
-                    styles.filterChip,
-                    selectedBlock === block && styles.filterChipActive,
-                  ]}
-                >
-                  <Text
+            {/* Block filters - only shown if multiple blocks exist */}
+            {hasMultipleBlocks && (
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterGroupLabel}>Block:</Text>
+                {['all', ...allBlocks].map((block) => (
+                  <Pressable
+                    key={block}
+                    onPress={() => setSelectedBlock(block)}
                     style={[
-                      styles.filterChipText,
-                      selectedBlock === block && styles.filterChipTextActive,
+                      styles.filterChip,
+                      selectedBlock === block && styles.filterChipActive,
                     ]}
                   >
-                    {block === 'all' ? 'All Towers' : block}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        selectedBlock === block && styles.filterChipTextActive,
+                      ]}
+                    >
+                      {block === 'all' ? 'All Blocks' : block}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
 
             {/* Status filters */}
             <View style={styles.filterGroup}>
@@ -900,6 +992,244 @@ export default function MaintenanceScreen() {
                 </View>
               </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ============================================================== */}
+      {/* 4.5 MODAL: CONFIGURE MAINTENANCE TARIFF (PRESIDENT / COMMITTEE) */}
+      {/* ============================================================== */}
+      <Modal
+        visible={showTariffModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isSavingTariff) setShowTariffModal(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 20 }}>⚙️</Text>
+                  <Text style={styles.modalTitle}>Configure Maintenance Tariff</Text>
+                </View>
+                <Text style={styles.modalSubtitle}>
+                  President & Committee Tariff Desk • Set monthly charges, penalty, & bank accounts
+                </Text>
+              </View>
+              <Pressable
+                disabled={isSavingTariff}
+                onPress={() => setShowTariffModal(false)}
+                style={styles.closeBtn}
+              >
+                <Text style={styles.closeBtnText}>✕</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView style={{ paddingVertical: spacing.sm }} showsVerticalScrollIndicator={false}>
+              {/* Tariff Calculation Mode */}
+              <Text style={styles.inputLabel}>1. Tariff Calculation Mode</Text>
+              <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md }}>
+                <Pressable
+                  style={[
+                    styles.filterChip,
+                    tariffMode === 'flat_fixed' && styles.filterChipActive,
+                    { flex: 1, paddingVertical: spacing.sm, alignItems: 'center' },
+                  ]}
+                  onPress={() => setTariffMode('flat_fixed')}
+                >
+                  <Text style={[styles.filterChipText, tariffMode === 'flat_fixed' && styles.filterChipTextActive]}>
+                    🏢 Flat Fixed Rate
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.filterChip,
+                    tariffMode === 'sqft_area' && styles.filterChipActive,
+                    { flex: 1, paddingVertical: spacing.sm, alignItems: 'center' },
+                  ]}
+                  onPress={() => setTariffMode('sqft_area')}
+                >
+                  <Text style={[styles.filterChipText, tariffMode === 'sqft_area' && styles.filterChipTextActive]}>
+                    📐 Per Sq.Ft Area Rate
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Base Amount / Rate */}
+              <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile]}>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Base Monthly Maintenance (₹) *</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    keyboardType="numeric"
+                    placeholder="e.g. 2500"
+                    value={tariffBaseRate}
+                    onChangeText={setTariffBaseRate}
+                  />
+                </View>
+                {tariffMode === 'sqft_area' && (
+                  <View style={styles.twoCol}>
+                    <Text style={styles.inputLabel}>Rate Per Sq.Ft (₹/sqft) *</Text>
+                    <TextInput
+                      style={styles.inputField}
+                      keyboardType="numeric"
+                      placeholder="e.g. 2.80"
+                      value={tariffSqFtRate}
+                      onChangeText={setTariffSqFtRate}
+                    />
+                  </View>
+                )}
+              </View>
+
+              {/* Sinking Fund & Facilities */}
+              <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile]}>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Sinking Fund / Reserve (₹)</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    keyboardType="numeric"
+                    placeholder="e.g. 450"
+                    value={tariffSinkingFund}
+                    onChangeText={setTariffSinkingFund}
+                  />
+                </View>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Common Amenities & Lift (₹)</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    keyboardType="numeric"
+                    placeholder="e.g. 500"
+                    value={tariffCommonFacilities}
+                    onChangeText={setTariffCommonFacilities}
+                  />
+                </View>
+              </View>
+
+              {/* Security & Housekeeping */}
+              <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile]}>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Security & Housekeeping (₹)</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    keyboardType="numeric"
+                    placeholder="e.g. 500"
+                    value={tariffSecurityFee}
+                    onChangeText={setTariffSecurityFee}
+                  />
+                </View>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Monthly Total Estimated</Text>
+                  <View style={[styles.inputField, { backgroundColor: '#F8FAFC', justifyContent: 'center' }]}>
+                    <Text style={{ fontWeight: 'bold', color: colors.primary[700] }}>
+                      ₹{((Number(tariffBaseRate) || 0) + (Number(tariffSinkingFund) || 0) + (Number(tariffCommonFacilities) || 0) + (Number(tariffSecurityFee) || 0)).toLocaleString('en-IN')}/month
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Due Date & Late Fee Penalty */}
+              <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile]}>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Billing Due Day (of month)</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    keyboardType="numeric"
+                    placeholder="e.g. 10"
+                    value={tariffDueDay}
+                    onChangeText={setTariffDueDay}
+                  />
+                </View>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Grace Period (Days)</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    keyboardType="numeric"
+                    placeholder="e.g. 7"
+                    value={tariffGraceDays}
+                    onChangeText={setTariffGraceDays}
+                  />
+                </View>
+              </View>
+
+              <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile]}>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Late Fee Fine (₹)</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    keyboardType="numeric"
+                    placeholder="e.g. 200"
+                    value={tariffLateFee}
+                    onChangeText={setTariffLateFee}
+                  />
+                </View>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Bank Name</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    placeholder="e.g. HDFC Bank Ltd"
+                    value={tariffBankName}
+                    onChangeText={setTariffBankName}
+                  />
+                </View>
+              </View>
+
+              {/* Bank & UPI Collection Account */}
+              <View style={[styles.twoColRow, isMobile && styles.twoColRowMobile]}>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Society Account Number</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    placeholder="e.g. 50100412890142"
+                    value={tariffBankAcc}
+                    onChangeText={setTariffBankAcc}
+                  />
+                </View>
+                <View style={styles.twoCol}>
+                  <Text style={styles.inputLabel}>Bank IFSC Code</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    placeholder="e.g. HDFC0001042"
+                    value={tariffBankIfsc}
+                    onChangeText={setTariffBankIfsc}
+                  />
+                </View>
+              </View>
+
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={styles.inputLabel}>Society Official UPI ID (VPA)</Text>
+                <TextInput
+                  style={styles.inputField}
+                  placeholder="e.g. shantiheights.rwa@hdfcbank"
+                  value={tariffUpiVpa}
+                  onChangeText={setTariffUpiVpa}
+                />
+              </View>
+
+              {/* Checkbox to update pending bills */}
+              <Pressable
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, marginBottom: spacing.md }}
+                onPress={() => setTariffUpdatePendingBills(!tariffUpdatePendingBills)}
+              >
+                <Text style={{ fontSize: 18 }}>{tariffUpdatePendingBills ? '☑️' : '⬜'}</Text>
+                <Text style={{ fontSize: typography.sizes.sm, color: colors.neutral[800], flex: 1 }}>
+                  Automatically update all existing pending maintenance invoices with this new tariff rate.
+                </Text>
+              </Pressable>
+            </ScrollView>
+
+            <View style={styles.modalFooterActions}>
+              <Button
+                title={isSavingTariff ? 'Saving Tariff...' : 'Save & Apply Maintenance Tariff'}
+                variant="primary"
+                size="lg"
+                fullWidth
+                loading={isSavingTariff}
+                onPress={handleSaveTariff}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -1827,6 +2157,34 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     color: colors.text.primary,
     marginBottom: spacing.md,
+  },
+  inputField: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border.default,
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: typography.sizes.sm,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+  },
+  inputLabel: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.semibold,
+    color: colors.neutral[700],
+    marginBottom: 4,
+  },
+  twoColRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  twoColRowMobile: {
+    flexDirection: 'column',
+    gap: 0,
+  },
+  twoCol: {
+    flex: 1,
   },
 
   // New Cycle Modal
