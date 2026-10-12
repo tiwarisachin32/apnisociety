@@ -462,13 +462,15 @@ export function importSocietyConfigJson(jsonStr: string): { success: boolean; er
  * Listen for configuration updates
  */
 export function subscribeToSocietyConfig(callback: (config: SocietyConfig) => void): () => void {
-  if (typeof window === 'undefined') return () => {};
+  if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {};
   const handler = (e: any) => {
-    callback(e.detail || getSocietyConfig());
+    callback(e?.detail || getSocietyConfig());
   };
   window.addEventListener(CONFIG_CHANGE_EVENT, handler);
   return () => {
-    window.removeEventListener(CONFIG_CHANGE_EVENT, handler);
+    if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+      window.removeEventListener(CONFIG_CHANGE_EVENT, handler);
+    }
   };
 }
 

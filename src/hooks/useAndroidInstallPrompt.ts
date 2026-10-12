@@ -16,17 +16,18 @@ export function useAndroidInstallPrompt() {
   const [isAndroid, setIsAndroid] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
 
     // Detect Android device
-    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+    const nav = typeof navigator !== 'undefined' ? navigator : ({} as any);
+    const userAgent = nav.userAgent || nav.vendor || (window as any).opera || '';
     const isAndroidDevice = /android/i.test(userAgent);
     setIsAndroid(isAndroidDevice);
 
     // Check if already in standalone display mode (installed)
     const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (navigator as any).standalone === true;
+      (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches) ||
+      nav.standalone === true;
     setIsInstalled(isStandalone);
 
     const handleBeforeInstall = (e: Event) => {
@@ -45,8 +46,10 @@ export function useAndroidInstallPrompt() {
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
-      window.removeEventListener('appinstalled', handleAppInstalled);
+      if (typeof window.removeEventListener === 'function') {
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+        window.removeEventListener('appinstalled', handleAppInstalled);
+      }
     };
   }, []);
 

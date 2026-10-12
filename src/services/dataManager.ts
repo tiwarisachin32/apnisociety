@@ -557,17 +557,23 @@ export function restoreDemoData(): void {
   localStorage.removeItem(STORAGE_KEYS.ROLES);
   localStorage.removeItem(STORAGE_KEYS.AUDIT_LOGS);
 
-  window.dispatchEvent(new CustomEvent(DATA_RESET_EVENT, { detail: { mode: 'demo' } }));
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent(DATA_RESET_EVENT, { detail: { mode: 'demo' } }));
+    } catch {}
+  }
 }
 
 /**
  * Subscribe to data reset and changes
  */
 export function subscribeToDataReset(callback: (detail: any) => void): () => void {
-  if (typeof window === 'undefined') return () => {};
-  const handler = (e: any) => callback(e.detail);
+  if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {};
+  const handler = (e: any) => callback(e?.detail);
   window.addEventListener(DATA_RESET_EVENT, handler);
   return () => {
-    window.removeEventListener(DATA_RESET_EVENT, handler);
+    if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+      window.removeEventListener(DATA_RESET_EVENT, handler);
+    }
   };
 }
