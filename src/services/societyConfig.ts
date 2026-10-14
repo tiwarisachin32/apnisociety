@@ -11,7 +11,13 @@ import {
   SocietyPresetType,
   SocietyTowerConfig,
 } from '../types/societyConfig';
-import { initNewSocietyDatabase } from './dataManager';
+
+// Decoupled hook for new society database initialization to eliminate circular require cycles
+let _onNewSocietyCreated: ((item: SocietyItem, config: SocietyConfig, president: any) => void) | null = null;
+
+export function registerSocietyCreationHook(fn: (item: SocietyItem, config: SocietyConfig, president: any) => void): void {
+  _onNewSocietyCreated = fn;
+}
 
 const STORAGE_KEY = 'apnisociety_custom_config_v1';
 const CONFIG_CHANGE_EVENT = 'apnisociety_config_updated';
@@ -744,7 +750,9 @@ export function createSociety(payload: CreateSocietyPayload): {
 
       // CRITICAL: Initialize society database WITHOUT mock/dummy data.
       // All subsequent entries will be performed by the society committee!
-      initNewSocietyDatabase(newSocietyItem, newConfig, presidentUser);
+      if (_onNewSocietyCreated) {
+        _onNewSocietyCreated(newSocietyItem, newConfig, presidentUser);
+      }
     } catch {}
   }
 

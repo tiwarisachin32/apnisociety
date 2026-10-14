@@ -1,13 +1,12 @@
-import {
-  MOCK_USERS,
-  getAllComplaints,
-  getStoredExpenses,
-  getAllMembers,
-  getAllNotifications,
-  getAllRoles,
-  getFinancialSummaryReport,
-  getMaintenanceBills,
-} from './index';
+import { MOCK_USERS } from './mockAuth';
+import { getAllComplaints } from './mockComplaints';
+import { getStoredExpenses } from './mockExpenses';
+import { getAllMembers } from './mockMembers';
+import { getAllNotifications } from './mockNotifications';
+import { getAllRoles } from './mockRoles';
+import { getFinancialSummaryReport } from './mockReports';
+import { getMaintenanceBills } from './mockMaintenance';
+
 
 export interface ApiHealthStatus {
   online: boolean;

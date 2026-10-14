@@ -4,7 +4,7 @@
  * Real Production Data mode with clean slates, real member onboarding, and zeroed ledgers.
  */
 
-import { getActiveSocietyId, getSocietyConfig } from './societyConfig';
+import { getActiveSocietyId, getSocietyConfig, registerSocietyCreationHook } from './societyConfig';
 import { SocietyConfig, SocietyItem } from '../types/societyConfig';
 import { CommitteeRole, SocietyMember, SocietyUnit } from '../types/members';
 import { MaintenanceBill } from '../types/maintenance';
@@ -314,6 +314,9 @@ export function initNewSocietyDatabase(
     membersCount: 1,
   };
 }
+
+// Register callback hook into societyConfig to prevent circular module require cycles
+registerSocietyCreationHook(initNewSocietyDatabase);
 
 export interface ResetOptions {
   adminName?: string;
