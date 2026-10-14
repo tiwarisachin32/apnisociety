@@ -1,5 +1,16 @@
 import logging
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# Ensure both project root and backend dir are in sys.path so imports work regardless of working directory
+_backend_dir = Path(__file__).resolve().parent
+_project_root = _backend_dir.parent
+
+for _p in [str(_project_root), str(_backend_dir)]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
@@ -82,4 +93,5 @@ def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
+    app_target = "main:app" if Path.cwd() == _backend_dir else "backend.main:app"
+    uvicorn.run(app_target, host="0.0.0.0", port=8000, reload=True)

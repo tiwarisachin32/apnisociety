@@ -69,10 +69,19 @@ SECRET_KEY=your_production_secret_key_here
 
 ### 4. Seed Database
 ```bash
+# If running from inside the backend/ folder:
+python seed.py
+
+# If running from the project root:
 python -m backend.seed
 ```
 
 ### 5. Start the Server
 ```bash
+# If you are inside the backend/ folder:
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+# Or if you are in the project root folder:
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+

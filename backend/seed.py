@@ -1,8 +1,18 @@
 """
 Database seeding script for ApniSociety PostgreSQL Database.
-Run: python -m backend.seed
+Run: python seed.py (from backend/) or python -m backend.seed (from project root)
 """
 import datetime
+import sys
+from pathlib import Path
+
+# Ensure both project root and backend dir are in sys.path
+_backend_dir = Path(__file__).resolve().parent
+_project_root = _backend_dir.parent
+for _p in [str(_project_root), str(_backend_dir)]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
 from backend.database import Base, SessionLocal, engine
 from backend.models import (
     Announcement,
