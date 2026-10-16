@@ -20,7 +20,8 @@ export interface ApiHealthStatus {
 }
 
 const STORAGE_API_BASE = 'apnisociety_api_base_url';
-export const DEFAULT_API_BASE = 'http://localhost:8000';
+export const DEFAULT_API_BASE =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || 'http://localhost:8000';
 
 export function getStoredApiBase(): string {
   try {
