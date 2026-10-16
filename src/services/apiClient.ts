@@ -1,4 +1,4 @@
-import { MOCK_USERS } from './mockAuth';
+import { MOCK_USERS, changeUserPassword } from './mockAuth';
 import { getAllComplaints } from './mockComplaints';
 import { getStoredExpenses } from './mockExpenses';
 import { getAllMembers } from './mockMembers';
@@ -133,6 +133,22 @@ class ApiClient {
       return await this.request<any[]>('/api/v1/auth/users');
     } catch {
       return MOCK_USERS;
+    }
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    try {
+      return await this.request<{ success: boolean; message: string }>('/api/v1/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: userId,
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
+      });
+    } catch {
+      // Local / Offline fallback
+      return changeUserPassword(userId, currentPassword, newPassword);
     }
   }
 

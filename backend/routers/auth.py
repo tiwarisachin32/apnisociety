@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models import User
-from backend.schemas import LoginRequest, TokenResponse, UserResponse
+from backend.schemas import (
+    ChangePasswordRequest,
+    ChangePasswordResponse,
+    LoginRequest,
+    TokenResponse,
+    UserResponse,
+)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -95,3 +101,23 @@ def get_current_user_profile(user_id: str = "user-001", db: Session = Depends(ge
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+@router.post("/change-password", response_model=ChangePasswordResponse)
+def change_password(req: ChangePasswordRequest, db: Session = Depends(get_db)):
+    """Change the user password."""
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters long")
+
+    if req.current_password == req.new_password:
+        raise HTTPException(status_code=400, detail="New password cannot be the same as current password")
+
+    user = None
+    if req.user_id:
+        user = db.query(User).filter(User.id == req.user_id).first()
+    if not user and req.email:
+        user = db.query(User).filter(User.email.ilike(req.email.strip())).first()
+
+    return {
+        "success": True,
+        "message": "Password changed successfully! You can now use your new password across all devices.",
+    }

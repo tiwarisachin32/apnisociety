@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleProp,
   StyleSheet,
+  Text,
   View,
   ViewStyle,
 } from 'react-native';
@@ -41,6 +42,16 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
     paddingVertical: isMobile ? spacing.md : spacing.xl,
   };
 
+  const sanitizeChildren = (kids: React.ReactNode) => {
+    return React.Children.map(kids, (child) => {
+      if (typeof child === 'string') {
+        if (!child.trim()) return null;
+        return <Text>{child}</Text>;
+      }
+      return child;
+    });
+  };
+
   if (scrollable) {
     return (
       <SafeAreaView style={[styles.root, style]}>
@@ -50,7 +61,7 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={innerStyle}>{children}</View>
+          <View style={innerStyle}>{sanitizeChildren(children)}</View>
         </ScrollView>
       </SafeAreaView>
     );
@@ -59,7 +70,7 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
   return (
     <SafeAreaView style={[styles.root, style]}>
       <View style={[styles.staticContent, innerStyle, contentContainerStyle]}>
-        {children}
+        {sanitizeChildren(children)}
       </View>
     </SafeAreaView>
   );

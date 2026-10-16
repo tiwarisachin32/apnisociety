@@ -12,6 +12,16 @@ class LoginRequest(BaseModel):
     email: str
     password: Optional[str] = "demo123"
 
+class ChangePasswordRequest(BaseModel):
+    user_id: Optional[str] = None
+    email: Optional[str] = None
+    current_password: str
+    new_password: str
+
+class ChangePasswordResponse(BaseModel):
+    success: bool
+    message: str
+
 # User
 class UserBase(BaseModel):
     name: str

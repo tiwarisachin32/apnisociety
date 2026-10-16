@@ -34,3 +34,14 @@ export interface AuthState {
   isLoading: boolean;
   error: string | null;
 }
+
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword?: string;
+}
+
+export interface ChangePasswordResponse {
+  success: boolean;
+  message: string;
+}

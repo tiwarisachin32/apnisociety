@@ -431,11 +431,11 @@ export default function NotificationsScreen({
       </View>
 
       {/* Toast Notification Banner */}
-      {toastMessage && (
+      {Boolean(toastMessage) ? (
         <View style={styles.toastBanner}>
           <Text style={styles.toastText}>{toastMessage}</Text>
         </View>
-      )}
+      ) : null}
 
       {/* Primary Navigation Tabs */}
       <View style={styles.tabsContainer}>

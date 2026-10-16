@@ -15,6 +15,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useResponsive } from '../hooks/useResponsive';
 import {
   MOCK_USERS,
+  getUserPassword,
   resetPasswordForIdentifier,
 } from '../services/mockAuth';
 import {
@@ -26,10 +27,14 @@ import {
 
 export interface LoginScreenProps {
   onNavigateToDashboard?: () => void;
+  onNavigateToChangePassword?: () => void;
 }
 
-export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps) {
-  const { user, isAuthenticated, isLoading, error, login, loginAsDemoUser, logout } = useAuth();
+export default function LoginScreen({
+  onNavigateToDashboard,
+  onNavigateToChangePassword,
+}: LoginScreenProps) {
+  const { user, isAuthenticated, isLoading, error, login, loginAsDemoUser, logout, changePassword } = useAuth();
   const { isMobile } = useResponsive();
 
   const [identifier, setIdentifier] = useState('');
@@ -48,6 +53,81 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotInput, setForgotInput] = useState('');
   const [forgotSuccessMsg, setForgotSuccessMsg] = useState<string | null>(null);
+
+  // Change Password state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState<string | null>(null);
+
+  const getPasswordStrength = (pwd: string) => {
+    if (!pwd) return { score: 0, label: '', color: colors.neutral[300] };
+    let score = 0;
+    if (pwd.length >= 6) score += 1;
+    if (pwd.length >= 8) score += 1;
+    if (/[A-Z]/.test(pwd) && /[a-z]/.test(pwd)) score += 1;
+    if (/[0-9]/.test(pwd)) score += 1;
+    if (/[^A-Za-z0-9]/.test(pwd)) score += 1;
+
+    if (score <= 2) return { score: 1, label: 'Weak', color: '#EF4444' };
+    if (score <= 3) return { score: 2, label: 'Fair', color: '#F59E0B' };
+    return { score: 3, label: 'Strong', color: '#10B981' };
+  };
+
+  const handleChangePassword = async () => {
+    setChangePasswordError(null);
+    setChangePasswordSuccess(null);
+
+    const curr = currentPassword.trim();
+    const next = newPassword.trim();
+    const conf = confirmPassword.trim();
+
+    if (!curr) {
+      setChangePasswordError('Please enter your current password.');
+      return;
+    }
+    if (!next) {
+      setChangePasswordError('Please enter your new password.');
+      return;
+    }
+    if (next.length < 6) {
+      setChangePasswordError('New password must be at least 6 characters long.');
+      return;
+    }
+    if (next === curr) {
+      setChangePasswordError('New password cannot be the same as your current password.');
+      return;
+    }
+    if (next !== conf) {
+      setChangePasswordError('New password and confirm password do not match.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const res = await changePassword(curr, next);
+      if (res.success) {
+        setChangePasswordSuccess(res.message);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setShowCurrentPassword(false);
+        setShowNewPassword(false);
+        setShowConfirmPassword(false);
+      } else {
+        setChangePasswordError(res.message || 'Failed to change password.');
+      }
+    } catch (err: any) {
+      setChangePasswordError(err?.message || 'Error occurred while updating password.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   // Refresh active device sessions when user is authenticated
   useEffect(() => {
@@ -234,11 +314,42 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
               />
             )}
             <Button
-              title={isAppOwner ? 'Sign Out / Switch Account' : 'Sign Out of this Device'}
-              variant="outline"
+              title={isAppOwner ? '🚪 Sign Out of App Owner Console' : '🚪 Sign Out of this Device'}
+              variant="danger"
               fullWidth
               onPress={logout}
             />
+          </View>
+        </Card>
+
+        {/* ================================================================ */}
+        {/* ACCOUNT SECURITY & CHANGE PASSWORD CARD                          */}
+        {/* ================================================================ */}
+        {/* ================================================================ */}
+        {/* ACCOUNT SECURITY & PASSWORD CARD                                 */}
+        {/* ================================================================ */}
+        <Card
+          title="🔐 Account Security & Password"
+          subtitle="Manage credentials and authentication security across your devices"
+          style={[styles.card, styles.marginTopMd]}
+        >
+          <View style={{ padding: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 220 }}>
+              <Text style={{ fontSize: typography.sizes.base, fontWeight: '700', color: colors.text.primary }}>
+                Account Password
+              </Text>
+              <Text style={{ fontSize: typography.sizes.xs, color: colors.text.secondary, marginTop: 4, lineHeight: 18 }}>
+                Protect your society account by keeping your password updated. You can change your password on the dedicated security page.
+              </Text>
+            </View>
+            {onNavigateToChangePassword && (
+              <Button
+                title="🔑 Change Password →"
+                variant="primary"
+                size="md"
+                onPress={onNavigateToChangePassword}
+              />
+            )}
           </View>
         </Card>
 
@@ -260,11 +371,11 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
             </Text>
           </View>
 
-          {deviceActionMsg && (
+          {Boolean(deviceActionMsg) ? (
             <View style={styles.successBanner}>
               <Text style={styles.successBannerText}>{deviceActionMsg}</Text>
             </View>
-          )}
+          ) : null}
 
           <View style={styles.sessionsList}>
             {deviceSessions.map((session, index) => {
@@ -403,11 +514,11 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
         style={styles.card}
       >
         {/* Error notification banner */}
-        {error && (
+        {Boolean(error) ? (
           <View style={styles.errorBanner}>
             <Text style={styles.errorBannerText}>{error}</Text>
           </View>
-        )}
+        ) : null}
 
         {/* Identifier Input */}
         <Input
@@ -528,11 +639,11 @@ export default function LoginScreen({ onNavigateToDashboard }: LoginScreenProps)
                 }
               }}
             />
-            {forgotSuccessMsg && (
+            {Boolean(forgotSuccessMsg) ? (
               <View style={styles.infoBanner}>
                 <Text style={styles.infoBannerText}>{forgotSuccessMsg}</Text>
               </View>
-            )}
+            ) : null}
             <View style={styles.forgotBtnRow}>
               <Button
                 title="Reset Password"
@@ -1019,5 +1130,99 @@ const styles = StyleSheet.create({
   },
   marginBottomSm: {
     marginBottom: spacing.sm,
+  },
+  passwordSuccessBox: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#6EE7B7',
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  passwordSuccessText: {
+    color: '#065F46',
+    fontSize: typography.sizes.sm,
+    fontWeight: '600',
+  },
+  passwordErrorBox: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  passwordErrorText: {
+    color: '#991B1B',
+    fontSize: typography.sizes.sm,
+    fontWeight: '600',
+  },
+  passwordFormCard: {
+    marginTop: spacing.xs,
+  },
+  passwordFieldGroup: {
+    marginBottom: spacing.sm,
+  },
+  passwordStrengthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    paddingHorizontal: 2,
+  },
+  passwordStrengthBars: {
+    flexDirection: 'row',
+    gap: 4,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  passwordStrengthBar: {
+    height: 4,
+    flex: 1,
+    borderRadius: borderRadius.full,
+  },
+  passwordStrengthText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+  },
+  passwordMatchRow: {
+    marginTop: 4,
+    paddingHorizontal: 2,
+  },
+  passwordMatchText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '600',
+  },
+  passwordTipsBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: spacing.sm,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  passwordTipsTitle: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+    color: colors.neutral[700],
+    marginBottom: 4,
+  },
+  passwordTipsItem: {
+    fontSize: typography.sizes.xs,
+    color: colors.neutral[600],
+    lineHeight: 18,
+  },
+  passwordActionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  eyeBtn: {
+    padding: spacing.xs,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eyeIcon: {
+    fontSize: 16,
   },
 });

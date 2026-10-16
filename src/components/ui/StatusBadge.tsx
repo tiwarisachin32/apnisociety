@@ -106,7 +106,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         />
       )}
 
-      {icon && <View style={styles.iconContainer}>{icon}</View>}
+      {Boolean(icon) ? (
+        <View style={styles.iconContainer}>
+          {typeof icon === 'string' ? <Text style={styles.text}>{icon}</Text> : icon}
+        </View>
+      ) : null}
 
       <Text
         style={[

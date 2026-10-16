@@ -24,7 +24,9 @@ import ReportsScreen from './app/reports';
 import RolesPermissionsScreen from './app/rolesPermissions';
 import SocietySettingsScreen from './app/societySettings';
 import WaterScreen from './app/water';
+import ChangePasswordScreen from './app/changePassword';
 import { AndroidInstallBanner } from './components/common/AndroidInstallBanner';
+import { ChangePasswordModal } from './components/common/ChangePasswordModal';
 import { AppLogo, Button, Card, SocietyLogo } from './components/ui';
 import { APP_NAME, PERMISSIONS, PermissionType } from './constants/app';
 import { borderRadius, colors, shadows, spacing, typography } from './constants/theme';
@@ -48,7 +50,8 @@ type TabKey =
   | 'reports'
   | 'settings'
   | 'backend'
-  | 'login';
+  | 'login'
+  | 'change_password';
 
 interface NavItem {
   key: TabKey;
@@ -183,7 +186,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function isTabPermitted(tabKey: TabKey, user: User | null): boolean {
-  if (tabKey === 'login') return true;
+  if (tabKey === 'login' || tabKey === 'change_password') return true;
   if (!user) return false;
 
   // Platform App Owner is dedicated strictly to Company Console
@@ -218,7 +221,9 @@ function AppContent() {
   const { user, isAuthenticated, isLoading, loginAsDemoUser, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>(() => (user?.isAppOwner ? 'settings' : 'dashboard'));
   const [showMoreModal, setShowMoreModal] = useState(false);
+  const [showUserSubmenu, setShowUserSubmenu] = useState(false);
   const [showDevConsole, setShowDevConsole] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [targetRoleToEdit, setTargetRoleToEdit] = useState<string | null>(null);
   const [targetMemberToEdit, setTargetMemberToEdit] = useState<string | null>(null);
   const { isDesktop, isMobile } = useResponsive();
@@ -294,6 +299,7 @@ function AppContent() {
   }, []);
 
   const handleNav = (tab: TabKey) => {
+    setShowUserSubmenu(false);
     if (!isTabPermitted(tab, user)) {
       setActiveTab('dashboard');
       setShowMoreModal(false);
@@ -367,49 +373,154 @@ function AppContent() {
           </Pressable>
         </View>
 
-        {/* User Persona Pill & Switcher */}
-        <View style={styles.headerRight}>
-          {!user?.isAppOwner && (
-            <Pressable
-              onPress={() => loginAsDemoUser(MOCK_USERS[0])}
-              style={{
-                backgroundColor: '#EFF6FF',
-                borderWidth: 1,
-                borderColor: '#93C5FD',
-                borderRadius: borderRadius.full,
-                paddingVertical: 5,
-                paddingHorizontal: 10,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 4,
-              }}
-              accessibilityLabel="Return to App Owner Company Console"
-            >
-              <Text style={{ fontSize: typography.sizes.xs, fontWeight: '700', color: '#1D4ED8' }}>
-                👑 Return to Company Console
-              </Text>
-            </Pressable>
-          )}
+        {/* User Persona & Account Controls */}
+        {!isMobile ? (
+          <View style={styles.headerRight}>
+            {user && (
+              <View style={styles.userProfileWrapper}>
+                <Pressable
+                  onPress={() => setShowUserSubmenu((prev) => !prev)}
+                  style={[
+                    styles.userProfilePill,
+                    showUserSubmenu && styles.userProfilePillActive,
+                  ]}
+                  accessibilityLabel="User Account Submenu"
+                  accessibilityState={{ expanded: showUserSubmenu }}
+                >
+                  <View style={styles.userAvatar} pointerEvents="none">
+                    <Text style={styles.avatarChar}>{user.name.charAt(0)}</Text>
+                  </View>
+                  <View style={styles.userInfoCol} pointerEvents="none">
+                    <Text style={styles.userName} numberOfLines={1}>{user.name}</Text>
+                    <Text style={styles.userRoleText} numberOfLines={1}>
+                      {user.roleTitle} {user.flatNumber ? `• ${user.flatNumber}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={[styles.switchIcon, showUserSubmenu && styles.switchIconRotated]} pointerEvents="none">
+                    {showUserSubmenu ? '▲' : '▼'}
+                  </Text>
+                </Pressable>
 
-          {user && (
+                {/* Desktop User Submenu Dropdown Modal */}
+                <Modal
+                  visible={showUserSubmenu}
+                  transparent
+                  animationType="fade"
+                  onRequestClose={() => setShowUserSubmenu(false)}
+                >
+                  <Pressable
+                    style={styles.submenuModalBackdrop}
+                    onPress={() => setShowUserSubmenu(false)}
+                    accessibilityLabel="Close Submenu"
+                  >
+                    <View
+                      style={styles.userSubmenuDropdown}
+                      onStartShouldSetResponder={() => true}
+                    >
+                      {/* Submenu User Header */}
+                      <View style={styles.submenuHeader}>
+                        <View style={styles.submenuUserAvatar}>
+                          <Text style={styles.submenuAvatarChar}>{user.name.charAt(0)}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <Text style={styles.submenuUserName} numberOfLines={1}>{user.name}</Text>
+                            {user.isAppOwner ? (
+                              <View style={styles.submenuOwnerBadge}>
+                                <Text style={styles.submenuOwnerBadgeText}>👑 OWNER</Text>
+                              </View>
+                            ) : (
+                              <View style={styles.submenuRoleBadge}>
+                                <Text style={styles.submenuRoleBadgeText}>{user.roleTitle}</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.submenuUserSub} numberOfLines={1}>
+                            {user.flatNumber ? `Unit ${user.flatNumber} • ` : ''}
+                            {user.societyCode ? `${user.societyCode} • ` : ''}
+                            {societyConfig.societyName}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.submenuDivider} />
+
+                      {/* Submenu Item 1: Switch Persona / Account Profile */}
+                      <Pressable
+                        style={styles.submenuItem}
+                        onPress={() => {
+                          setShowUserSubmenu(false);
+                          handleNav('login');
+                        }}
+                      >
+                        <View style={styles.submenuIconCircle}>
+                          <Text style={styles.submenuItemIcon}>⇄</Text>
+                        </View>
+                        <View style={styles.submenuItemTextCol}>
+                          <Text style={styles.submenuItemTitle}>Switch Persona / Profile</Text>
+                          <Text style={styles.submenuItemDesc}>Switch accounts & view active device sessions</Text>
+                        </View>
+                      </Pressable>
+
+                      {/* Submenu Item 2: Change Password (Dedicated Page) */}
+                      <Pressable
+                        style={styles.submenuItem}
+                        onPress={() => {
+                          setShowUserSubmenu(false);
+                          handleNav('change_password');
+                        }}
+                      >
+                        <View style={styles.submenuIconCircle}>
+                          <Text style={styles.submenuItemIcon}>🔑</Text>
+                        </View>
+                        <View style={styles.submenuItemTextCol}>
+                          <Text style={styles.submenuItemTitle}>Change Password</Text>
+                          <Text style={styles.submenuItemDesc}>Update your security credentials & login password</Text>
+                        </View>
+                      </Pressable>
+
+                      <View style={styles.submenuDivider} />
+
+                      {/* Submenu Item 3: Logout */}
+                      <Pressable
+                        style={[styles.submenuItem, styles.submenuItemLogout]}
+                        onPress={() => {
+                          setShowUserSubmenu(false);
+                          logout();
+                          handleNav('login');
+                        }}
+                      >
+                        <View style={[styles.submenuIconCircle, { backgroundColor: '#FEE2E2' }]}>
+                          <Text style={styles.submenuItemIcon}>🚪</Text>
+                        </View>
+                        <View style={styles.submenuItemTextCol}>
+                          <Text style={[styles.submenuItemTitle, { color: '#DC2626' }]}>
+                            {user.isAppOwner ? 'Owner Logout' : 'Sign Out'}
+                          </Text>
+                          <Text style={styles.submenuItemDesc}>Safely log out of your account session</Text>
+                        </View>
+                      </Pressable>
+                    </View>
+                  </Pressable>
+                </Modal>
+              </View>
+            )}
+          </View>
+        ) : (
+          /* Mobile View: User information is moved to More Options; header stays clean & spacious */
+          <View style={styles.headerRight}>
             <Pressable
-              onPress={() => handleNav('login')}
-              style={styles.userProfilePill}
-              accessibilityLabel={user.isAppOwner ? "App Owner Switch Persona" : "Account Profile"}
+              onPress={() => setShowMoreModal(true)}
+              style={styles.mobileMoreHeaderBtn}
+              accessibilityLabel="Open More Options & Profile"
             >
-              <View style={styles.userAvatar}>
-                <Text style={styles.avatarChar}>{user.name.charAt(0)}</Text>
+              <View style={styles.mobileHeaderAvatar}>
+                <Text style={styles.mobileHeaderAvatarText}>{user?.name?.charAt(0) || '👤'}</Text>
               </View>
-              <View style={styles.userInfoCol}>
-                <Text style={styles.userName} numberOfLines={1}>{user.name}</Text>
-                <Text style={styles.userRoleText} numberOfLines={1}>
-                  {user.roleTitle} {user.flatNumber ? `• ${user.flatNumber}` : ''}
-                </Text>
-              </View>
-              <Text style={styles.switchIcon}>⇄</Text>
+              <Text style={styles.mobileMoreHeaderIcon}>☰</Text>
             </Pressable>
-          )}
-        </View>
+          </View>
+        )}
       </View>
 
       {/* Desktop / Tablet Navigation Bar - Only permitted modules */}
@@ -442,7 +553,7 @@ function AppContent() {
       )}
 
       {/* Main Screen Content View */}
-      <View style={styles.screenContent}>
+      <View style={[styles.screenContent, isMobile && { paddingBottom: 68 }]}>
         {!isCurrentTabPermitted ? (
           <View style={styles.restrictedContainer}>
             <Card style={styles.restrictedCard} variant="elevated">
@@ -474,6 +585,7 @@ function AppContent() {
             onNavigateToReports={() => handleNav('reports')}
             onNavigateToSettings={() => handleNav('settings')}
             onNavigateToLogin={() => handleNav('login')}
+            onChangePassword={() => handleNav('change_password')}
           />
         ) : activeTab === 'maintenance' ? (
           <MaintenanceScreen />
@@ -562,15 +674,23 @@ function AppContent() {
             onClose={() => handleNav('dashboard')}
             onNavigateToDashboard={() => handleNav('dashboard')}
           />
+        ) : activeTab === 'change_password' ? (
+          <ChangePasswordScreen
+            onNavigateBack={() => handleNav('dashboard')}
+            onNavigateToDashboard={() => handleNav('dashboard')}
+          />
         ) : activeTab === 'login' ? (
-          <LoginScreen onNavigateToDashboard={() => handleNav('dashboard')} />
+          <LoginScreen
+            onNavigateToDashboard={() => handleNav('dashboard')}
+            onNavigateToChangePassword={() => handleNav('change_password')}
+          />
         ) : (
           <HomeScreen />
         )}
       </View>
 
       {/* Subtle Developer Hidden Access Bar (Strictly restricted to App Owner) */}
-      <View style={styles.appFooterBar}>
+      <View style={[styles.appFooterBar, isMobile && { marginBottom: 58 }]}>
         <Text style={styles.footerCopyrightText}>
           {APP_NAME} Enterprise • Secure Resident & Society Platform
         </Text>
@@ -585,7 +705,7 @@ function AppContent() {
         )}
       </View>
 
-      {/* Mobile Bottom Navigation Bar - Only permitted options */}
+      {/* Mobile Bottom Navigation Bar - Fixed to bottom */}
       {isMobile && (
         <View style={styles.mobileBottomNav}>
           {NAV_ITEMS.filter((item) => mobilePrimaryTabs.includes(item.key)).map((item) => {
@@ -606,22 +726,30 @@ function AppContent() {
             );
           })}
 
-          {/* More Menu Pill - Only if there are additional permitted modules */}
-          {moreNavItems.length > 0 && (
-            <Pressable onPress={() => setShowMoreModal(true)} style={styles.mobileNavItem}>
-              <View style={styles.moreIconWrapper}>
-                <Text style={styles.mobileNavIcon}>☰</Text>
+          {/* More Options Tab - ALWAYS available on mobile to access User Info, Profile & Modules */}
+          <Pressable
+            onPress={() => setShowMoreModal(true)}
+            style={[styles.mobileNavItem, showMoreModal && styles.mobileNavItemActive]}
+            accessibilityLabel="More options, user profile & society modules"
+          >
+            <View style={styles.moreIconWrapper}>
+              <Text style={[styles.mobileNavIcon, showMoreModal && styles.mobileNavIconActive]}>
+                ☰
+              </Text>
+              {moreNavItems.length > 0 && (
                 <View style={styles.moreBadge}>
                   <Text style={styles.moreBadgeText}>{moreNavItems.length}</Text>
                 </View>
-              </View>
-              <Text style={styles.mobileNavLabel}>More</Text>
-            </Pressable>
-          )}
+              )}
+            </View>
+            <Text style={[styles.mobileNavLabel, showMoreModal && styles.mobileNavLabelActive]}>
+              More
+            </Text>
+          </Pressable>
         </View>
       )}
 
-      {/* Mobile "More" Full Navigation Drawer / Modal - Only permitted modules */}
+      {/* Mobile "More Options" Full Drawer / Modal - User Info, Actions & Modules */}
       <Modal
         visible={showMoreModal}
         transparent
@@ -631,52 +759,144 @@ function AppContent() {
         <View style={styles.modalBackdrop}>
           <Pressable style={styles.modalBackdropClick} onPress={() => setShowMoreModal(false)} />
           <View style={styles.moreDrawer}>
+            <View style={styles.drawerHandleBar} />
             <View style={styles.drawerHeader}>
               <View>
-                <Text style={styles.drawerTitle}>Authorized Society Modules</Text>
+                <Text style={styles.drawerTitle}>More Options</Text>
                 <Text style={styles.drawerSubtitle}>
-                  Modules accessible to your {user?.roleTitle || 'Resident'} role
+                  User Profile, Actions & Society Modules
                 </Text>
               </View>
-              <Pressable onPress={() => setShowMoreModal(false)} style={styles.drawerCloseBtn}>
+              <Pressable
+                onPress={() => setShowMoreModal(false)}
+                style={styles.drawerCloseBtn}
+                accessibilityLabel="Close Options"
+              >
                 <Text style={styles.drawerCloseText}>✕</Text>
               </Pressable>
             </View>
 
-            <ScrollView contentContainerStyle={styles.drawerGrid}>
-              {permittedNavItems.map((item) => {
-                const isActive = activeTab === item.key;
-                return (
-                  <Pressable
-                    key={item.key}
-                    onPress={() => handleNav(item.key)}
-                    style={[styles.drawerItem, isActive && styles.drawerItemActive]}
-                  >
-                    <Text style={styles.drawerItemIcon}>{item.icon}</Text>
-                    <Text
-                      style={[styles.drawerItemLabel, isActive && styles.drawerItemLabelActive]}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            <ScrollView contentContainerStyle={styles.drawerScrollContent} showsVerticalScrollIndicator={false}>
+              {/* User Profile & Account Info Section (Moved from Header for Mobile View) */}
+              {user && (
+                <View style={styles.drawerUserProfileCard}>
+                  <View style={styles.drawerUserTopRow}>
+                    <View style={styles.drawerUserAvatar}>
+                      <Text style={styles.drawerUserAvatarChar}>{user.name.charAt(0)}</Text>
+                    </View>
+                    <View style={styles.drawerUserMeta}>
+                      <View style={styles.drawerUserNameRow}>
+                        <Text style={styles.drawerUserName} numberOfLines={1}>{user.name}</Text>
+                        {user.isAppOwner ? (
+                          <View style={styles.drawerOwnerBadge}>
+                            <Text style={styles.drawerOwnerBadgeText}>👑 OWNER</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.drawerRoleBadge}>
+                            <Text style={styles.drawerRoleBadgeText}>{user.roleTitle}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.drawerUserSub} numberOfLines={1}>
+                        {user.flatNumber ? `Unit ${user.flatNumber} • ` : ''}
+                        {user.societyCode ? `${user.societyCode} • ` : ''}
+                        {societyConfig.societyName}
+                      </Text>
+                      {Boolean(user.phone || user.email) && (
+                        <Text style={styles.drawerUserContact} numberOfLines={1}>
+                          📞 {user.phone || user.email}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
 
-            {/* Hidden Developer Access in Drawer (Strictly App Owner only) */}
-            {Boolean(user?.isAppOwner || user?.permissions?.includes(PERMISSIONS.API_VIEW_DETAILS)) && (
-              <View style={styles.drawerFooter}>
-                <Pressable
-                  onPress={() => {
-                    setShowMoreModal(false);
-                    setShowDevConsole(true);
-                  }}
-                  style={styles.drawerDevTrigger}
-                >
-                  <Text style={styles.drawerDevTriggerText}>⚙️ Developer API & Diagnostics (Owner)</Text>
-                </Pressable>
+                  {/* Account Actions Grid / Buttons */}
+                  <View style={styles.drawerUserActionsRow}>
+
+
+                    <Pressable
+                      onPress={() => {
+                        setShowMoreModal(false);
+                        handleNav('login');
+                      }}
+                      style={styles.drawerActionBtn}
+                      accessibilityLabel="Switch Account or Demo Persona"
+                    >
+                      <Text style={styles.drawerActionIcon}>⇄</Text>
+                      <Text style={styles.drawerActionText}>Switch Persona</Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        setShowMoreModal(false);
+                        handleNav('change_password');
+                      }}
+                      style={styles.drawerActionBtn}
+                      accessibilityLabel="Change Password"
+                    >
+                      <Text style={styles.drawerActionIcon}>🔑</Text>
+                      <Text style={styles.drawerActionText}>Change Password</Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        setShowMoreModal(false);
+                        logout();
+                        handleNav('login');
+                      }}
+                      style={[styles.drawerActionBtn, styles.drawerLogoutBtn]}
+                      accessibilityLabel="Logout"
+                    >
+                      <Text style={styles.drawerActionIcon}>🚪</Text>
+                      <Text style={styles.drawerLogoutText}>
+                        {user.isAppOwner ? 'Owner Logout' : 'Logout'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
+              {/* Authorized Society Modules Section */}
+              <View style={styles.drawerSectionHeader}>
+                <Text style={styles.drawerSectionTitle}>Authorized Modules</Text>
+                <Text style={styles.drawerSectionCount}>{permittedNavItems.length} available</Text>
               </View>
-            )}
+
+              <View style={styles.drawerGrid}>
+                {permittedNavItems.map((item) => {
+                  const isActive = activeTab === item.key;
+                  return (
+                    <Pressable
+                      key={item.key}
+                      onPress={() => handleNav(item.key)}
+                      style={[styles.drawerItem, isActive && styles.drawerItemActive]}
+                    >
+                      <Text style={styles.drawerItemIcon}>{item.icon}</Text>
+                      <Text
+                        style={[styles.drawerItemLabel, isActive && styles.drawerItemLabelActive]}
+                      >
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Hidden Developer Access in Drawer (Strictly App Owner only) */}
+              {Boolean(user?.isAppOwner || user?.permissions?.includes(PERMISSIONS.API_VIEW_DETAILS)) && (
+                <View style={styles.drawerFooter}>
+                  <Pressable
+                    onPress={() => {
+                      setShowMoreModal(false);
+                      setShowDevConsole(true);
+                    }}
+                    style={styles.drawerDevTrigger}
+                  >
+                    <Text style={styles.drawerDevTriggerText}>⚙️ Developer API & Diagnostics (Owner)</Text>
+                  </Pressable>
+                </View>
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -697,6 +917,12 @@ function AppContent() {
           />
         </View>
       </Modal>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        visible={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
+      />
     </View>
   );
 }
@@ -726,6 +952,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
+    zIndex: 100,
     ...shadows.sm,
   },
   brandRow: {
@@ -786,6 +1013,159 @@ const styles = StyleSheet.create({
   headerSetupBtnTextActive: {
     color: '#ffffff',
   },
+  userProfileWrapper: {
+    position: 'relative' as any,
+    zIndex: 1100,
+  },
+  userProfilePillActive: {
+    borderColor: colors.primary[400],
+    backgroundColor: colors.primary[50],
+  },
+  switchIconRotated: {
+    color: colors.primary[600],
+    fontSize: 10,
+  },
+  submenuModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.15)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 66,
+    paddingRight: 16,
+  },
+  userSubmenuDropdown: {
+    width: 290,
+    backgroundColor: '#ffffff',
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: spacing.xs,
+    ...shadows.lg,
+    elevation: 25,
+  },
+  submenuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
+    backgroundColor: '#F8FAFC',
+    borderRadius: borderRadius.md,
+  },
+  submenuUserAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary[600],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submenuAvatarChar: {
+    color: '#ffffff',
+    fontSize: typography.sizes.base,
+    fontWeight: '700',
+  },
+  submenuUserName: {
+    fontSize: typography.sizes.sm,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  submenuOwnerBadge: {
+    backgroundColor: '#0F2C59',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: borderRadius.sm,
+  },
+  submenuOwnerBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  submenuRoleBadge: {
+    backgroundColor: colors.primary[50],
+    borderColor: colors.primary[200],
+    borderWidth: 1,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: borderRadius.sm,
+  },
+  submenuRoleBadgeText: {
+    color: colors.primary[700],
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  submenuUserSub: {
+    fontSize: 11,
+    color: colors.text.muted,
+    marginTop: 2,
+  },
+  submenuDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 4,
+  },
+  submenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  submenuItemLogout: {
+    backgroundColor: '#FEF2F2',
+  },
+  submenuIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.neutral[100],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submenuItemIcon: {
+    fontSize: 14,
+  },
+  submenuItemTextCol: {
+    flex: 1,
+  },
+  submenuItemTitle: {
+    fontSize: typography.sizes.xs + 1,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  submenuItemDesc: {
+    fontSize: 10,
+    color: colors.text.muted,
+    marginTop: 1,
+  },
+  mobileMoreHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: colors.neutral[50],
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  mobileHeaderAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primary[600],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileHeaderAvatarText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  mobileMoreHeaderIcon: {
+    fontSize: 13,
+    color: colors.text.secondary,
+  },
   userProfilePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -796,6 +1176,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: spacing.sm,
     gap: spacing.xs,
+    cursor: 'pointer' as any,
   },
   userAvatar: {
     width: 26,
@@ -868,6 +1249,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mobileBottomNav: {
+    position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
+    bottom: 0,
+    left: 0,
+    right: 0,
     height: 58,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
@@ -875,14 +1260,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingBottom: Platform.OS === 'ios' ? 12 : 2,
+    paddingBottom: Platform.OS === 'ios' ? 14 : 2,
+    zIndex: 1000,
     ...shadows.md,
+    elevation: 8,
   },
   mobileNavItem: {
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
     paddingVertical: 4,
+  },
+  mobileNavItemActive: {
+    backgroundColor: colors.primary[50],
+    borderRadius: borderRadius.md,
   },
   mobileNavIcon: {
     fontSize: 18,
@@ -934,26 +1325,39 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   moreDrawer: {
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
     backgroundColor: '#ffffff',
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
-    maxHeight: '75%',
-    padding: spacing.lg,
+    maxHeight: '88%',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
     borderTopWidth: 1,
     borderColor: colors.border.default,
     ...shadows.lg,
+  },
+  drawerHandleBar: {
+    width: 36,
+    height: 4,
+    backgroundColor: colors.neutral[300],
+    borderRadius: borderRadius.full,
+    alignSelf: 'center',
+    marginBottom: spacing.xs,
   },
   drawerHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: spacing.md,
-    paddingBottom: spacing.sm,
+    marginBottom: spacing.sm,
+    paddingBottom: spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.light,
   },
   drawerTitle: {
-    fontSize: typography.sizes.lg,
+    fontSize: typography.sizes.base + 1,
     fontWeight: typography.weights.bold,
     color: colors.text.primary,
   },
@@ -969,29 +1373,186 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.text.muted,
   },
-  drawerGrid: {
+  drawerScrollContent: {
+    width: '100%',
+    paddingBottom: spacing.xxl,
+  },
+  drawerUserProfileCard: {
+    width: '100%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  drawerUserTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  drawerUserAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary[600],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drawerUserAvatarChar: {
+    color: '#ffffff',
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.bold,
+  },
+  drawerUserMeta: {
+    flex: 1,
+  },
+  drawerUserNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  drawerUserName: {
+    fontSize: typography.sizes.sm + 1,
+    fontWeight: typography.weights.bold,
+    color: colors.text.primary,
+  },
+  drawerOwnerBadge: {
+    backgroundColor: '#0F2C59',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  drawerOwnerBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  drawerRoleBadge: {
+    backgroundColor: colors.primary[50],
+    borderColor: colors.primary[200],
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: borderRadius.sm,
+  },
+  drawerRoleBadgeText: {
+    color: colors.primary[700],
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  drawerUserSub: {
+    fontSize: typography.sizes.xs,
+    color: colors.text.secondary,
+    marginTop: 2,
+  },
+  drawerUserContact: {
+    fontSize: 11,
+    color: colors.text.muted,
+    marginTop: 2,
+  },
+  drawerUserActionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
+    gap: 6,
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  drawerActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    borderRadius: borderRadius.md,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  drawerActionIcon: {
+    fontSize: 13,
+  },
+  drawerActionText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  drawerActionBtnSpecial: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+    borderRadius: borderRadius.md,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    width: '100%',
+    marginBottom: 2,
+  },
+  drawerActionTextSpecial: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+    color: '#1D4ED8',
+  },
+  drawerLogoutBtn: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  drawerLogoutText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  drawerSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  drawerSectionTitle: {
+    fontSize: typography.sizes.xs + 1,
+    fontWeight: typography.weights.bold,
+    color: colors.text.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  drawerSectionCount: {
+    fontSize: 11,
+    color: colors.text.muted,
+  },
+  drawerGrid: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
     paddingBottom: spacing.xl,
   },
   drawerItem: {
-    width: '30%',
-    minWidth: 90,
-    backgroundColor: colors.neutral[50],
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '29%',
+    minWidth: 92,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border.default,
+    borderColor: '#E2E8F0',
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 84,
   },
   drawerItemActive: {
     backgroundColor: colors.primary[50],
     borderColor: colors.primary[400],
   },
   drawerItemIcon: {
-    fontSize: 24,
+    fontSize: 26,
     marginBottom: spacing.xs,
   },
   drawerItemLabel: {
@@ -999,6 +1560,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
     color: colors.text.primary,
     textAlign: 'center',
+    lineHeight: 16,
   },
   drawerItemLabelActive: {
     color: colors.primary[700],

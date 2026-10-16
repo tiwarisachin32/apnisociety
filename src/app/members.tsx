@@ -458,11 +458,11 @@ export default function MembersScreen({
   return (
     <ScreenContainer maxWidth={1180}>
       {/* Toast Banner */}
-      {toastMessage && (
+      {Boolean(toastMessage) ? (
         <View style={styles.toastBanner}>
           <Text style={styles.toastText}>{toastMessage}</Text>
         </View>
-      )}
+      ) : null}
 
       {/* Header Section */}
       <View style={styles.header}>

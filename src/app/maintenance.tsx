@@ -282,11 +282,11 @@ export default function MaintenanceScreen() {
   return (
     <ScreenContainer maxWidth={1120}>
       {/* Toast Notification */}
-      {toastMessage && (
+      {Boolean(toastMessage) ? (
         <View style={styles.toastBanner}>
           <Text style={styles.toastText}>✓ {toastMessage}</Text>
         </View>
-      )}
+      ) : null}
 
       {/* Module Header */}
       <View style={styles.header}>

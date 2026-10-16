@@ -43,7 +43,11 @@ export const StatCard: React.FC<StatCardProps> = ({
     <View style={[styles.card, variant !== 'default' && { borderLeftColor: getVariantBorder(), borderLeftWidth: 4 }, style]}>
       <View style={styles.header}>
         <Text style={styles.label} numberOfLines={1}>{label}</Text>
-        {icon && <View style={styles.iconContainer}>{icon}</View>}
+        {Boolean(icon) ? (
+          <View style={styles.iconContainer}>
+            {typeof icon === 'string' ? <Text>{icon}</Text> : icon}
+          </View>
+        ) : null}
         {badge && (
           <View style={[styles.badge, badgeColor ? { backgroundColor: badgeColor } : null]}>
             <Text style={styles.badgeText}>{badge}</Text>

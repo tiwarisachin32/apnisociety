@@ -63,7 +63,11 @@ export const Modal: React.FC<ModalProps> = ({
             {children}
           </ScrollView>
 
-          {footer && <View style={styles.footer}>{footer}</View>}
+          {Boolean(footer) ? (
+            <View style={styles.footer}>
+              {typeof footer === 'string' ? <Text style={styles.subtitle}>{footer}</Text> : footer}
+            </View>
+          ) : null}
         </View>
       </View>
     </RNModal>

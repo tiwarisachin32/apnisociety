@@ -112,13 +112,25 @@ export const Card: React.FC<CardProps> = ({
                 <Text style={[styles.subtitle, subtitleStyle]}>{subtitle}</Text>
               )}
             </View>
-            {action && <View style={styles.headerAction}>{action}</View>}
+            {action && (
+              <View style={styles.headerAction}>
+                {typeof action === 'string' ? <Text>{action}</Text> : action}
+              </View>
+            )}
           </View>
         )}
 
-        {children && <View style={[styles.content, contentStyle]}>{children}</View>}
+        {children != null && children !== false && children !== '' && (
+          <View style={[styles.content, contentStyle]}>
+            {typeof children === 'string' ? <Text>{children}</Text> : children}
+          </View>
+        )}
 
-        {footer && <View style={[styles.footer, footerStyle]}>{footer}</View>}
+        {footer && (
+          <View style={[styles.footer, footerStyle]}>
+            {typeof footer === 'string' ? <Text>{footer}</Text> : footer}
+          </View>
+        )}
       </Pressable>
     );
   }
@@ -143,13 +155,25 @@ export const Card: React.FC<CardProps> = ({
               <Text style={[styles.subtitle, subtitleStyle]}>{subtitle}</Text>
             )}
           </View>
-          {action && <View style={styles.headerAction}>{action}</View>}
+          {action && (
+            <View style={styles.headerAction}>
+              {typeof action === 'string' ? <Text>{action}</Text> : action}
+            </View>
+          )}
         </View>
       )}
 
-      {children && <View style={[styles.content, contentStyle]}>{children}</View>}
+      {children != null && children !== false && children !== '' && (
+        <View style={[styles.content, contentStyle]}>
+          {typeof children === 'string' ? <Text>{children}</Text> : children}
+        </View>
+      )}
 
-      {footer && <View style={[styles.footer, footerStyle]}>{footer}</View>}
+      {footer && (
+        <View style={[styles.footer, footerStyle]}>
+          {typeof footer === 'string' ? <Text>{footer}</Text> : footer}
+        </View>
+      )}
     </View>
   );
 };

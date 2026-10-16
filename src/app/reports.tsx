@@ -199,11 +199,11 @@ export default function ReportsScreen({
   return (
     <ScreenContainer maxWidth={1180}>
       {/* Toast Feedback Banner */}
-      {toastMessage && (
+      {Boolean(toastMessage) ? (
         <View style={styles.toastBanner}>
           <Text style={styles.toastText}>{toastMessage}</Text>
         </View>
-      )}
+      ) : null}
 
       {/* Header Section */}
       <View style={styles.header}>

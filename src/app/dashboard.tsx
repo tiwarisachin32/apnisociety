@@ -36,6 +36,7 @@ export interface DashboardScreenProps {
   onNavigateToReports?: () => void;
   onNavigateToSettings?: () => void;
   onNavigateToLogin?: () => void;
+  onChangePassword?: () => void;
 }
 
 export default function DashboardScreen({
@@ -51,6 +52,7 @@ export default function DashboardScreen({
   onNavigateToReports,
   onNavigateToSettings,
   onNavigateToLogin,
+  onChangePassword,
 }: DashboardScreenProps) {
   const { user, loginAsDemoUser, logout, hasPermission } = useAuth();
   const { isMobile, isTablet, isDesktop } = useResponsive();
@@ -215,6 +217,18 @@ export default function DashboardScreen({
     ) {
       onNavigateToReports();
       return;
+    }
+
+    // 11. Account Security & Change Password
+    if (action.id === 'action-change-password') {
+      if (onChangePassword) {
+        onChangePassword();
+        return;
+      }
+      if (onNavigateToLogin) {
+        onNavigateToLogin();
+        return;
+      }
     }
 
     // Category-based fallback navigation

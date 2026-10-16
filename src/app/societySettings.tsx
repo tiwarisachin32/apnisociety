@@ -96,7 +96,7 @@ export default function SocietySettingsScreen({
   onNavigateToBackend,
   onNavigateToMaintenance,
 }: SocietySettingsScreenProps) {
-  const { user, hasPermission, loginAsDemoUser } = useAuth();
+  const { user, hasPermission, loginAsDemoUser, logout } = useAuth();
   const { isMobile, isTablet, isDesktop } = useResponsive();
 
   const canManageSettings =
@@ -708,6 +708,17 @@ export default function SocietySettingsScreen({
               onPress={onNavigateToDashboard}
             />
           )}
+          <Button
+            title="🚪 Log Out"
+            variant="danger"
+            size="md"
+            onPress={() => {
+              logout();
+              if (onNavigateToDashboard) {
+                onNavigateToDashboard();
+              }
+            }}
+          />
         </View>
       </View>
 

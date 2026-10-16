@@ -178,12 +178,31 @@ export const Button: React.FC<ButtonProps> = ({
             color={variantStyle.text.color}
             style={styles.spinner}
           />
-        ) : (
-          leftIcon && <View style={styles.leftIconWrapper}>{leftIcon}</View>
-        )}
+        ) : Boolean(leftIcon) ? (
+          <View style={styles.leftIconWrapper}>
+            {typeof leftIcon === 'string' ? (
+              <Text style={[styles.baseText, variantStyle.text, sizeStyle.text]}>{leftIcon}</Text>
+            ) : (
+              leftIcon
+            )}
+          </View>
+        ) : null}
 
-        {children ? (
-          children
+        {children != null && children !== false ? (
+          typeof children === 'string' ? (
+            <Text
+              style={[
+                styles.baseText,
+                variantStyle.text,
+                sizeStyle.text,
+                textStyle,
+              ]}
+            >
+              {children}
+            </Text>
+          ) : (
+            children
+          )
         ) : (
           <Text
             style={[
@@ -197,9 +216,15 @@ export const Button: React.FC<ButtonProps> = ({
           </Text>
         )}
 
-        {!loading && rightIcon && (
-          <View style={styles.rightIconWrapper}>{rightIcon}</View>
-        )}
+        {!loading && Boolean(rightIcon) ? (
+          <View style={styles.rightIconWrapper}>
+            {typeof rightIcon === 'string' ? (
+              <Text style={[styles.baseText, variantStyle.text, sizeStyle.text]}>{rightIcon}</Text>
+            ) : (
+              rightIcon
+            )}
+          </View>
+        ) : null}
       </View>
     </Pressable>
   );

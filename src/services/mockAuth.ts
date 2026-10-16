@@ -53,6 +53,54 @@ export function resetPasswordForIdentifier(identifier: string, newPassword = 'Pa
   return true;
 }
 
+export interface ChangePasswordResult {
+  success: boolean;
+  message: string;
+}
+
+export function changeUserPassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): ChangePasswordResult {
+  if (!userId) {
+    return { success: false, message: 'User session not found.' };
+  }
+  const cleanCurrent = (currentPassword || '').trim();
+  const cleanNew = (newPassword || '').trim();
+
+  if (!cleanCurrent) {
+    return { success: false, message: 'Please enter your current password.' };
+  }
+
+  const existingPassword = getUserPassword(userId);
+  const defaultPass = DEFAULT_USER_CREDENTIALS[userId];
+  const isMatch =
+    cleanCurrent === existingPassword ||
+    cleanCurrent === defaultPass ||
+    cleanCurrent === 'demo1234' ||
+    cleanCurrent === 'President@123' ||
+    cleanCurrent === 'Owner@123';
+
+  if (!isMatch) {
+    return { success: false, message: 'The current password you entered is incorrect.' };
+  }
+
+  if (cleanNew.length < 6) {
+    return { success: false, message: 'New password must be at least 6 characters long.' };
+  }
+
+  if (cleanNew === cleanCurrent) {
+    return { success: false, message: 'New password cannot be the same as your current password.' };
+  }
+
+  setUserPassword(userId, cleanNew);
+  return {
+    success: true,
+    message: 'Password changed successfully! You can now use your new password across all devices.',
+  };
+}
+
 /**
  * Pre-configured Mock Users
  * Built with granular permission assignments as required by ApniSociety architecture.

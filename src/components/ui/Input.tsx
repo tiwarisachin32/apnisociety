@@ -71,7 +71,11 @@ export const Input = React.forwardRef<any, InputProps>(({
           !editable && styles.inputWrapperDisabled,
         ]}
       >
-        {leftIcon && <View style={styles.leftIconWrapper}>{leftIcon}</View>}
+        {Boolean(leftIcon) ? (
+          <View style={styles.leftIconWrapper}>
+            {typeof leftIcon === 'string' ? <Text>{leftIcon}</Text> : leftIcon}
+          </View>
+        ) : null}
 
         <TextInput
           ref={ref}
@@ -88,7 +92,11 @@ export const Input = React.forwardRef<any, InputProps>(({
           {...rest}
         />
 
-        {rightIcon && <View style={styles.rightIconWrapper}>{rightIcon}</View>}
+        {Boolean(rightIcon) ? (
+          <View style={styles.rightIconWrapper}>
+            {typeof rightIcon === 'string' ? <Text>{rightIcon}</Text> : rightIcon}
+          </View>
+        ) : null}
       </View>
 
       {hasError ? (

@@ -216,6 +216,15 @@ export const ALL_QUICK_ACTIONS: QuickActionItem[] = [
     badgeType: 'success',
     icon: '📊',
   },
+  {
+    id: 'action-change-password',
+    title: 'Change Password',
+    description: 'Update your account login password and security credentials',
+    category: 'community',
+    badge: 'Security',
+    badgeType: 'info',
+    icon: '🔑',
+  },
 ];
 
 export const MOCK_ACTIVITIES: RecentActivity[] = [
