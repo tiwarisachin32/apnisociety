@@ -53,6 +53,16 @@ import {
 } from '../types/societyConfig';
 import { validateFirestoreConnection } from '../services/firebase';
 import {
+  BackendProvider,
+  getActiveBackendProvider,
+  setActiveBackendProvider,
+  pingActiveBackend,
+  pingFastApiBackend,
+  pingFirebaseBackend,
+  BACKEND_MODE_CHANGED_EVENT,
+} from '../services/backendConfig';
+import { getStoredApiBase } from '../services/apiClient';
+import {
   addSystemLog,
   clearSystemLogs,
   getPlatformHealthMetrics,
@@ -348,6 +358,23 @@ export default function SocietySettingsScreen({
   const [healthMetrics, setHealthMetrics] = useState<PlatformHealthMetrics>(getPlatformHealthMetrics());
   const [isTestingPing, setIsTestingPing] = useState(false);
   const [pingResult, setPingResult] = useState<string>('');
+  const [activeBackend, setActiveBackend] = useState<BackendProvider>(getActiveBackendProvider());
+
+  useEffect(() => {
+    const handleBackendChange = (e: any) => {
+      if (e?.detail?.provider) {
+        setActiveBackend(e.detail.provider);
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener(BACKEND_MODE_CHANGED_EVENT, handleBackendChange);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(BACKEND_MODE_CHANGED_EVENT, handleBackendChange);
+      }
+    };
+  }, []);
 
   const [systemLogs, setSystemLogs] = useState<SystemLogEntry[]>(getSystemLogs());
   const [selectedLogLevel, setSelectedLogLevel] = useState<LogLevel | 'ALL'>('ALL');
@@ -358,29 +385,45 @@ export default function SocietySettingsScreen({
   const [resolveModalBug, setResolveModalBug] = useState<SocietyBugReport | null>(null);
   const [resolutionNotesText, setResolutionNotesText] = useState('');
 
-  const handleTestPing = async () => {
+  const handleTestPing = async (targetProvider?: BackendProvider) => {
+    const providerToTest = targetProvider || activeBackend;
     setIsTestingPing(true);
-    setPingResult('Testing Firestore connection...');
+    setPingResult(
+      providerToTest === 'fastapi'
+        ? `Testing FastAPI connection (${getStoredApiBase()}/health)...`
+        : 'Testing Firestore connection...'
+    );
+
     try {
-      const ok = await validateFirestoreConnection();
-      if (ok) {
-        setPingResult('✓ Cloud Firestore response 200 OK (Latency 32ms)');
-        addSystemLog({
-          level: 'INFO',
-          societyCode: 'GLOBAL',
-          service: 'HealthCheck',
-          action: 'MANUAL_PING',
-          message: 'Cloud Firestore round-trip ping successful. Latency verified at 32ms.',
-        });
-        setSystemLogs(getSystemLogs());
-      } else {
-        setPingResult('⚠️ Offline cache mode active.');
-      }
+      const res = await pingActiveBackend(providerToTest);
+      setPingResult(res.message);
+      addSystemLog({
+        level: res.online ? 'INFO' : 'WARN',
+        societyCode: 'GLOBAL',
+        service: providerToTest === 'fastapi' ? 'FastAPI_HealthCheck' : 'Firestore_HealthCheck',
+        action: 'MANUAL_PING',
+        message: `${res.message} (Target: ${res.url || providerToTest})`,
+      });
+      setSystemLogs(getSystemLogs());
     } catch (err: any) {
       setPingResult(`⚠️ Ping error: ${err?.message || 'Check network'}`);
     } finally {
       setIsTestingPing(false);
     }
+  };
+
+  const handleSwitchBackend = (newBackend: BackendProvider) => {
+    setActiveBackend(newBackend);
+    setActiveBackendProvider(newBackend);
+    showToast(`✓ Switched active backend to ${newBackend === 'fastapi' ? 'FastAPI REST + PostgreSQL' : 'Firebase Cloud Firestore'}`);
+    addSystemLog({
+      level: 'INFO',
+      societyCode: 'GLOBAL',
+      service: 'BackendArchitecture',
+      action: 'SWITCH_BACKEND',
+      message: `Active backend switched to ${newBackend === 'fastapi' ? 'FastAPI REST + PostgreSQL (port 8000)' : 'Google Cloud Firestore NoSQL'}.`,
+    });
+    setSystemLogs(getSystemLogs());
   };
 
   const handleSimulateLog = () => {
@@ -686,11 +729,37 @@ export default function SocietySettingsScreen({
         </View>
 
         <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => handleSwitchBackend(activeBackend === 'fastapi' ? 'firebase' : 'fastapi')}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: borderRadius.md,
+              backgroundColor: activeBackend === 'fastapi' ? '#EFF6FF' : '#FEF3C7',
+              borderColor: activeBackend === 'fastapi' ? '#3B82F6' : '#F59E0B',
+              borderWidth: 1,
+            }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: '700', color: activeBackend === 'fastapi' ? '#1D4ED8' : '#B45309' }}>
+              {activeBackend === 'fastapi' ? '⚡ FastAPI Backend' : '🔥 Firebase Cloud'}
+            </Text>
+            <Text style={{ fontSize: 11, color: colors.neutral[500] }}>[Switch]</Text>
+          </Pressable>
+
           <Button
-            title="⚡ Ping Test"
+            title={
+              isTestingPing
+                ? 'Pinging...'
+                : activeBackend === 'fastapi'
+                ? '⚡ Ping FastAPI'
+                : '🔥 Ping Firebase'
+            }
             variant="outline"
             size="md"
-            onPress={handleTestPing}
+            onPress={() => handleTestPing()}
             loading={isTestingPing}
           />
           <Button
@@ -803,38 +872,255 @@ export default function SocietySettingsScreen({
       {activeTab === 'running' && (
         <View style={styles.tabContent}>
           {/* Running Status Banner */}
-          <Card style={{ marginBottom: spacing.md, backgroundColor: '#F0FDF4', borderColor: '#BBF7D0', borderWidth: 1 }}>
+          <Card
+            style={{
+              marginBottom: spacing.md,
+              backgroundColor: activeBackend === 'fastapi' ? '#EFF6FF' : '#F0FDF4',
+              borderColor: activeBackend === 'fastapi' ? '#93C5FD' : '#BBF7D0',
+              borderWidth: 1,
+            }}
+          >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
               <View style={{ flex: 1, minWidth: 260 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <Text style={{ fontSize: 28 }}>🟢</Text>
+                  <Text style={{ fontSize: 28 }}>{activeBackend === 'fastapi' ? '⚡' : '🟢'}</Text>
                   <View>
-                    <Text style={{ fontSize: typography.sizes.lg, fontWeight: 'bold', color: '#166534' }}>
-                      App Running • 100% Operational
+                    <Text
+                      style={{
+                        fontSize: typography.sizes.lg,
+                        fontWeight: 'bold',
+                        color: activeBackend === 'fastapi' ? '#1E40AF' : '#166534',
+                      }}
+                    >
+                      {activeBackend === 'fastapi'
+                        ? 'FastAPI Backend Mode Active'
+                        : 'Firebase Firestore Mode Active'}
                     </Text>
-                    <Text style={{ fontSize: typography.sizes.xs, color: '#15803D' }}>
-                      All platform services active across client societies
+                    <Text
+                      style={{
+                        fontSize: typography.sizes.xs,
+                        color: activeBackend === 'fastapi' ? '#2563EB' : '#15803D',
+                        fontWeight: '600',
+                      }}
+                    >
+                      {activeBackend === 'fastapi'
+                        ? 'Python 3.11 • Uvicorn • SQLAlchemy 2.0 • PostgreSQL'
+                        : 'Google Cloud Firestore Enterprise NoSQL • Live'}
                     </Text>
                   </View>
                 </View>
-                <Text style={{ fontSize: typography.sizes.sm, color: '#14532D', marginTop: 4, lineHeight: 20 }}>
-                  ApniSociety platform company engine is live on Google Cloud Run with Firestore Enterprise database replication.
+                <Text
+                  style={{
+                    fontSize: typography.sizes.sm,
+                    color: activeBackend === 'fastapi' ? '#1E3A8A' : '#14532D',
+                    marginTop: 4,
+                    lineHeight: 20,
+                  }}
+                >
+                  {activeBackend === 'fastapi'
+                    ? `REST endpoints routed to ${getStoredApiBase()} with Vite reverse proxy (/api, /health).`
+                    : 'ApniSociety platform company engine is live on Google Cloud Run with Firestore Enterprise database replication.'}
                 </Text>
               </View>
 
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                <Button
-                  title={isTestingPing ? 'Checking Ping...' : '⚡ Test Database Ping'}
-                  variant="primary"
-                  size="sm"
-                  onPress={handleTestPing}
-                  style={{ backgroundColor: '#16A34A' }}
-                />
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <Button
+                    title={isTestingPing ? 'Checking...' : `⚡ Ping ${activeBackend === 'fastapi' ? 'FastAPI' : 'Firestore'}`}
+                    variant="primary"
+                    size="sm"
+                    onPress={() => handleTestPing()}
+                    style={{ backgroundColor: activeBackend === 'fastapi' ? '#2563EB' : '#16A34A' }}
+                  />
+                  <Button
+                    title={activeBackend === 'fastapi' ? 'Switch to Firebase' : 'Switch to FastAPI'}
+                    variant="outline"
+                    size="sm"
+                    onPress={() => handleSwitchBackend(activeBackend === 'fastapi' ? 'firebase' : 'fastapi')}
+                  />
+                </View>
                 {pingResult ? (
-                  <Text style={{ fontSize: typography.sizes.xs, color: '#166534', fontWeight: 'bold' }}>
+                  <Text
+                    style={{
+                      fontSize: typography.sizes.xs,
+                      color: pingResult.includes('✓') ? '#166534' : '#B45309',
+                      fontWeight: 'bold',
+                    }}
+                  >
                     {pingResult}
                   </Text>
                 ) : null}
+              </View>
+            </View>
+          </Card>
+
+          {/* Backend Switching & Health Diagnostic Hub */}
+          <Card
+            title="🔌 Active Backend & Database Engine"
+            subtitle="Choose between FastAPI (Local / Container REST) and Firebase (Cloud Firestore)"
+            style={{ marginBottom: spacing.md }}
+          >
+            <View style={{ padding: spacing.sm, gap: spacing.md }}>
+              {/* Backend Selector Tiles */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+                {/* Tile 1: FastAPI */}
+                <Pressable
+                  onPress={() => handleSwitchBackend('fastapi')}
+                  style={{
+                    flex: 1,
+                    minWidth: 260,
+                    padding: spacing.md,
+                    borderRadius: borderRadius.md,
+                    backgroundColor: activeBackend === 'fastapi' ? '#EFF6FF' : '#F9FAFB',
+                    borderColor: activeBackend === 'fastapi' ? '#3B82F6' : colors.border.light,
+                    borderWidth: 2,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 20 }}>⚡</Text>
+                      <Text style={{ fontSize: typography.sizes.base, fontWeight: 'bold', color: colors.neutral[900] }}>
+                        FastAPI + PostgreSQL
+                      </Text>
+                    </View>
+                    <StatusBadge
+                      label={activeBackend === 'fastapi' ? 'ACTIVE BACKEND' : 'STANDBY'}
+                      status={activeBackend === 'fastapi' ? 'success' : 'info'}
+                    />
+                  </View>
+                  <Text style={{ fontSize: typography.sizes.xs, color: colors.neutral[600], marginBottom: 8 }}>
+                    Asynchronous Python REST API with Pydantic v2 validation, SQLAlchemy ORM, and 14 relational tables.
+                  </Text>
+                  <Text style={{ fontSize: 11, fontFamily: 'monospace', color: colors.neutral[500] }}>
+                    Target: {getStoredApiBase()} • Docs: /docs
+                  </Text>
+                  <View style={{ marginTop: spacing.sm, flexDirection: 'row', gap: 6 }}>
+                    <Button
+                      title="⚡ Ping FastAPI (/health)"
+                      size="sm"
+                      variant="outline"
+                      onPress={() => handleTestPing('fastapi')}
+                      loading={isTestingPing}
+                    />
+                    {activeBackend !== 'fastapi' && (
+                      <Button
+                        title="Set as Active"
+                        size="sm"
+                        variant="primary"
+                        onPress={() => handleSwitchBackend('fastapi')}
+                      />
+                    )}
+                  </View>
+                </Pressable>
+
+                {/* Tile 2: Firebase Firestore */}
+                <Pressable
+                  onPress={() => handleSwitchBackend('firebase')}
+                  style={{
+                    flex: 1,
+                    minWidth: 260,
+                    padding: spacing.md,
+                    borderRadius: borderRadius.md,
+                    backgroundColor: activeBackend === 'firebase' ? '#FEF3C7' : '#F9FAFB',
+                    borderColor: activeBackend === 'firebase' ? '#F59E0B' : colors.border.light,
+                    borderWidth: 2,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 20 }}>🔥</Text>
+                      <Text style={{ fontSize: typography.sizes.base, fontWeight: 'bold', color: colors.neutral[900] }}>
+                        Cloud Firestore
+                      </Text>
+                    </View>
+                    <StatusBadge
+                      label={activeBackend === 'firebase' ? 'ACTIVE BACKEND' : 'STANDBY'}
+                      status={activeBackend === 'firebase' ? 'warning' : 'info'}
+                    />
+                  </View>
+                  <Text style={{ fontSize: typography.sizes.xs, color: colors.neutral[600], marginBottom: 8 }}>
+                    Managed Google Cloud Firestore NoSQL database with offline persistence and real-time syncing.
+                  </Text>
+                  <Text style={{ fontSize: 11, fontFamily: 'monospace', color: colors.neutral[500] }}>
+                    Project: ai-studio-apnisociety-0a2721b7...
+                  </Text>
+                  <View style={{ marginTop: spacing.sm, flexDirection: 'row', gap: 6 }}>
+                    <Button
+                      title="🔥 Ping Firestore"
+                      size="sm"
+                      variant="outline"
+                      onPress={() => handleTestPing('firebase')}
+                      loading={isTestingPing}
+                    />
+                    {activeBackend !== 'firebase' && (
+                      <Button
+                        title="Set as Active"
+                        size="sm"
+                        variant="primary"
+                        onPress={() => handleSwitchBackend('firebase')}
+                      />
+                    )}
+                  </View>
+                </Pressable>
+              </View>
+
+              {/* Developer Guide: How to run FastAPI backend with npm run dev */}
+              <View
+                style={{
+                  backgroundColor: '#1E293B',
+                  borderRadius: borderRadius.md,
+                  padding: spacing.md,
+                  gap: 8,
+                }}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: typography.sizes.sm, fontWeight: 'bold', color: '#38BDF8' }}>
+                    💡 How to Run FastAPI Backend with npm run dev
+                  </Text>
+                  <Text style={{ fontSize: typography.sizes.xs, color: '#94A3B8' }}>
+                    Port 8000 (FastAPI) ➔ Port 3000 (Vite)
+                  </Text>
+                </View>
+
+                <Text style={{ fontSize: typography.sizes.xs, color: '#E2E8F0', lineHeight: 18 }}>
+                  To connect your React frontend to the Python FastAPI backend, use either of these methods:
+                </Text>
+
+                <View style={{ backgroundColor: '#0F172A', padding: spacing.sm, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 12, fontFamily: 'monospace', color: '#4ADE80', fontWeight: 'bold' }}>
+                    # Option A: Single Command Full-Stack Runner (Both together)
+                  </Text>
+                  <Text style={{ fontSize: 13, fontFamily: 'monospace', color: '#F8FAFC', marginVertical: 3 }}>
+                    npm run dev:full
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
+                    Launches both FastAPI uvicorn on port 8000 and Vite on port 3000 concurrently.
+                  </Text>
+                </View>
+
+                <View style={{ backgroundColor: '#0F172A', padding: spacing.sm, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 12, fontFamily: 'monospace', color: '#60A5FA', fontWeight: 'bold' }}>
+                    # Option B: Run in 2 Separate Terminals
+                  </Text>
+                  <Text style={{ fontSize: 12, fontFamily: 'monospace', color: '#F8FAFC' }}>
+                    Terminal 1: npm run backend
+                  </Text>
+                  <Text style={{ fontSize: 12, fontFamily: 'monospace', color: '#F8FAFC' }}>
+                    Terminal 2: npm run dev
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
+                    Vite automatically reverse-proxies /api/* and /health to http://localhost:8000.
+                  </Text>
+                </View>
+
+                <View style={{ backgroundColor: '#0F172A', padding: spacing.sm, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 12, fontFamily: 'monospace', color: '#FCD34D', fontWeight: 'bold' }}>
+                    # Option C: Docker Compose (PostgreSQL 16 + FastAPI)
+                  </Text>
+                  <Text style={{ fontSize: 12, fontFamily: 'monospace', color: '#F8FAFC' }}>
+                    cd backend && docker-compose up -d
+                  </Text>
+                </View>
               </View>
             </View>
           </Card>

@@ -70,35 +70,44 @@ class ApiClient {
   // Health Check
   async checkHealth(): Promise<ApiHealthStatus> {
     const startTime = Date.now();
-    try {
-      const res = await fetch(`${this.baseUrl}/health`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(3000),
-      });
-      const latency = Date.now() - startTime;
-      if (res.ok) {
-        const data = await res.json();
-        return {
-          online: true,
-          url: this.baseUrl,
-          service: data.service || 'FastAPI + PostgreSQL',
-          version: data.version || '1.0.0',
-          database: data.database || 'PostgreSQL (Connected)',
-          latencyMs: latency,
-          lastChecked: new Date().toLocaleTimeString(),
-          mode: 'connected',
-        };
+    const candidateUrls = [
+      `${this.baseUrl}/health`,
+      '/health',
+    ];
+
+    for (const url of candidateUrls) {
+      try {
+        const res = await fetch(url, {
+          method: 'GET',
+          signal: AbortSignal.timeout(3000),
+        });
+        const latency = Date.now() - startTime;
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          return {
+            online: true,
+            url: this.baseUrl,
+            service: data.service || 'FastAPI 0.111 (Python 3.11)',
+            version: data.version || '1.0.0',
+            database: data.database || 'PostgreSQL (Connected)',
+            latencyMs: latency,
+            lastChecked: new Date().toLocaleTimeString(),
+            mode: 'connected',
+          };
+        }
+      } catch {
+        // Continue trying next candidate
       }
-    } catch {
-      // Backend not running locally right now
     }
 
+    const latency = Date.now() - startTime;
     return {
       online: false,
       url: this.baseUrl,
-      service: 'ApniSociety In-App Cloud Services',
+      service: 'FastAPI Backend (Local/Remote)',
       version: '1.0.0',
-      database: 'Firebase Firestore / Client State (Active)',
+      database: 'PostgreSQL (Offline on ' + this.baseUrl + ')',
+      latencyMs: latency,
       lastChecked: new Date().toLocaleTimeString(),
       mode: 'fallback_cloud',
     };

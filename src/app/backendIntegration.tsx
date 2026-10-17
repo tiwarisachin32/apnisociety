@@ -20,6 +20,14 @@ import {
   getStoredApiBase,
   setStoredApiBase,
 } from '../services/apiClient';
+import {
+  BackendProvider,
+  getActiveBackendProvider,
+  setActiveBackendProvider,
+  pingFastApiBackend,
+  pingFirebaseBackend,
+  BACKEND_MODE_CHANGED_EVENT,
+} from '../services/backendConfig';
 
 export interface BackendIntegrationScreenProps {
   onClose?: () => void;
@@ -200,6 +208,28 @@ export default function BackendIntegrationScreen({
   const [apiUrl, setApiUrl] = useState(getStoredApiBase());
   const [healthStatus, setHealthStatus] = useState<ApiHealthStatus | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [activeBackend, setActiveBackend] = useState<BackendProvider>(getActiveBackendProvider());
+
+  useEffect(() => {
+    const handleBackendChange = (e: any) => {
+      if (e?.detail?.provider) {
+        setActiveBackend(e.detail.provider);
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener(BACKEND_MODE_CHANGED_EVENT, handleBackendChange);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(BACKEND_MODE_CHANGED_EVENT, handleBackendChange);
+      }
+    };
+  }, []);
+
+  const handleSwitchBackend = (newBackend: BackendProvider) => {
+    setActiveBackend(newBackend);
+    setActiveBackendProvider(newBackend);
+  };
 
   // Endpoint Explorer State
   const [selectedEndpoint, setSelectedEndpoint] = useState<EndpointDef>(API_ENDPOINTS[0]);
@@ -494,6 +524,67 @@ export default function BackendIntegrationScreen({
                 gracefully connects via persistent cloud storage so no functionality is
                 interrupted.
               </Text>
+
+              {/* Active Backend Engine Selector */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  gap: spacing.sm,
+                  backgroundColor: colors.neutral[100],
+                  padding: 4,
+                  borderRadius: borderRadius.md,
+                  marginTop: spacing.sm,
+                  marginBottom: spacing.xs,
+                }}
+              >
+                <Pressable
+                  onPress={() => handleSwitchBackend('fastapi')}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    borderRadius: borderRadius.sm,
+                    backgroundColor: activeBackend === 'fastapi' ? '#ffffff' : 'transparent',
+                    alignItems: 'center',
+                    borderWidth: activeBackend === 'fastapi' ? 1 : 0,
+                    borderColor: '#3B82F6',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: typography.sizes.xs,
+                      fontWeight: 'bold',
+                      color: activeBackend === 'fastapi' ? '#1D4ED8' : colors.neutral[600],
+                    }}
+                  >
+                    ⚡ Active: FastAPI (PostgreSQL)
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => handleSwitchBackend('firebase')}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    borderRadius: borderRadius.sm,
+                    backgroundColor: activeBackend === 'firebase' ? '#ffffff' : 'transparent',
+                    alignItems: 'center',
+                    borderWidth: activeBackend === 'firebase' ? 1 : 0,
+                    borderColor: '#F59E0B',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: typography.sizes.xs,
+                      fontWeight: 'bold',
+                      color: activeBackend === 'firebase' ? '#B45309' : colors.neutral[600],
+                    }}
+                  >
+                    🔥 Active: Firebase (Firestore)
+                  </Text>
+                </Pressable>
+              </View>
 
               {/* Endpoint Config Bar */}
               <View style={styles.urlConfigContainer}>
