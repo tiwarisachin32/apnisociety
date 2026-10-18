@@ -9,6 +9,8 @@ import {
 } from '../types/notifications';
 import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
 import { getActiveSocietyId } from './societyConfig';
+import { apiClient } from './apiClient';
+import { getActiveBackendProvider } from './backendConfig';
 
 const STORAGE_KEY_NOTIFICATIONS = 'apnisociety_notifications_v1';
 const STORAGE_KEY_PREFERENCES = 'apnisociety_user_notif_prefs_v1';
@@ -315,6 +317,20 @@ export async function createBroadcastNotification(
 
   notifs.unshift(newNotif);
   saveNotifications(notifs);
+
+  if (getActiveBackendProvider() === 'fastapi') {
+    apiClient.broadcastNotification({
+      title: payload.title,
+      content: payload.message,
+      priority: payload.urgency === 'critical' ? 'urgent' : payload.urgency === 'high' ? 'high' : 'medium',
+      targetAudience: payload.targetAudience,
+      senderName: sender.name,
+      senderRole: sender.roleTitle,
+    }).catch((err) => {
+      console.warn('FastAPI notification broadcast sync error:', err);
+    });
+  }
+
   return newNotif;
 }
 

@@ -8,6 +8,8 @@ import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
 import { getActiveSocietyId, getSocietyConfig, saveSocietyConfig } from './societyConfig';
 import { getStoredMembers, getStoredUnits } from './mockMembers';
 import { SocietyConfig } from '../types/societyConfig';
+import { apiClient } from './apiClient';
+import { getActiveBackendProvider } from './backendConfig';
 
 const STORAGE_KEY_BILLS = 'apnisociety_maintenance_bills';
 
@@ -414,6 +416,17 @@ export async function payMaintenanceBill(
   bills[index] = updatedBill;
   saveBills(bills);
 
+  // If FastAPI backend is active, dispatch asynchronous payment persistence to PostgreSQL
+  if (getActiveBackendProvider() === 'fastapi') {
+    apiClient.recordBillPayment(billId, {
+      paymentMode: paymentMethod,
+      transactionRef: txnId,
+      paidBy: bill.residentName,
+    }).catch((err) => {
+      console.warn('FastAPI bill payment sync error:', err);
+    });
+  }
+
   const receipt: MaintenancePaymentReceipt = {
     receiptNumber: receiptNum,
     billNumber: bill.billNumber,
@@ -468,6 +481,17 @@ export async function markBillOfflinePaid(
 
   bills[index] = updated;
   saveBills(bills);
+
+  if (getActiveBackendProvider() === 'fastapi') {
+    apiClient.recordBillPayment(billId, {
+      paymentMode: paymentMethod,
+      transactionRef: referenceId,
+      paidBy: updated.residentName,
+    }).catch((err) => {
+      console.warn('FastAPI offline payment sync error:', err);
+    });
+  }
+
   return updated;
 }
 

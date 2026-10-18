@@ -29,6 +29,7 @@ import {
   updateFacilityTariff,
   resetFacilitiesToDefault,
 } from '../services/mockHallBooking';
+import { subscribeToDataReset } from '../services/dataManager';
 import {
   BookingSlot,
   EventType,
@@ -135,6 +136,13 @@ export default function HallBookingScreen({
     setAllBookings(getAllHallBookings());
     setSummary(getHallBookingSummary(user?.id));
   };
+
+  React.useEffect(() => {
+    const unsub = subscribeToDataReset(() => {
+      reloadData();
+    });
+    return unsub;
+  }, [user?.id]);
 
   const myBookings = user ? allBookings.filter((b) => b.userId === user.id) : [];
   const pendingApprovals = allBookings.filter((b) => b.status === 'pending_approval');

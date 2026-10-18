@@ -8,6 +8,8 @@ import {
 } from '../types/members';
 import { generateRealSocietyUnits, getSocietyStorageKey, isSocietyCleanData } from './dataManager';
 import { getActiveSocietyId, getSocietyConfig } from './societyConfig';
+import { apiClient } from './apiClient';
+import { getActiveBackendProvider } from './backendConfig';
 
 const STORAGE_MEMBERS_KEY = 'apnisociety_members_data';
 const STORAGE_STAFF_KEY = 'apnisociety_staff_data';
@@ -1105,6 +1107,13 @@ export function addMember(payload: NewMemberPayload): SocietyMember {
     saveUnits([...units]);
   }
 
+  // If FastAPI backend is active, dispatch asynchronous persistence to PostgreSQL
+  if (getActiveBackendProvider() === 'fastapi') {
+    apiClient.createMember(payload).catch((err) => {
+      console.warn('FastAPI member creation sync error:', err);
+    });
+  }
+
   return newMember;
 }
 
@@ -1133,6 +1142,12 @@ export function deleteMember(id: string): void {
   const members = getStoredMembers();
   const filtered = members.filter((m) => m.id !== id);
   saveMembers(filtered);
+
+  if (getActiveBackendProvider() === 'fastapi') {
+    apiClient.deleteMember(id).catch((err) => {
+      console.warn('FastAPI member deletion sync error:', err);
+    });
+  }
 }
 
 export function resetDemoMembers(): void {

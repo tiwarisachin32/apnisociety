@@ -8,6 +8,8 @@ import {
   RolesSummaryMetrics,
   SocietyRole,
 } from '../types/roles';
+import { apiClient } from './apiClient';
+import { getActiveBackendProvider } from './backendConfig';
 
 const STORAGE_ROLES_KEY = 'apnisociety_roles_data';
 const STORAGE_AUDIT_KEY = 'apnisociety_roles_audit_data';
@@ -629,6 +631,17 @@ export function createRole(payload: NewRolePayload, performedBy = 'Col. S. K. Ve
     notes: `Created custom role with ${newRole.permissions.length} capabilities.`,
   };
   saveAuditLogs([newAudit, ...auditLogs]);
+
+  if (getActiveBackendProvider() === 'fastapi') {
+    apiClient.createCustomRole({
+      name: newRole.name,
+      description: newRole.description,
+      category: newRole.category,
+      permissions: newRole.permissions,
+    }).catch((err) => {
+      console.warn('FastAPI role creation sync error:', err);
+    });
+  }
 
   return newRole;
 }

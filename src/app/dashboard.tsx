@@ -21,6 +21,7 @@ import {
 } from '../services/mockDashboard';
 import { getAllNotifications } from '../services/mockNotifications';
 import { MOCK_USERS } from '../services/mockAuth';
+import { subscribeToDataReset } from '../services/dataManager';
 import { DashboardMetric, QuickActionItem, SocietyNotice } from '../types/dashboard';
 
 export interface DashboardScreenProps {
@@ -59,6 +60,14 @@ export default function DashboardScreen({
 
   // Active filter category for quick actions
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [, setTick] = useState(0);
+
+  React.useEffect(() => {
+    const unsub = subscribeToDataReset(() => {
+      setTick((t) => t + 1);
+    });
+    return unsub;
+  }, []);
   // Persona switcher modal
   const [showPersonaModal, setShowPersonaModal] = useState<boolean>(false);
   // Notice detail modal

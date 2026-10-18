@@ -8,6 +8,8 @@ import {
 } from '../types/expenses';
 import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
 import { getActiveSocietyId, getSocietyConfig } from './societyConfig';
+import { apiClient } from './apiClient';
+import { getActiveBackendProvider } from './backendConfig';
 
 const STORAGE_KEY_EXPENSES = 'apnisociety_expenses_data';
 const STORAGE_KEY_CLAIMS = 'apnisociety_reimbursement_claims';
@@ -411,6 +413,22 @@ export async function addSocietyExpense(
 
   expenses.unshift(newExpense);
   saveExpenses(expenses);
+
+  if (getActiveBackendProvider() === 'fastapi') {
+    apiClient.createExpense({
+      category: payload.category,
+      title: payload.title,
+      vendorName: payload.vendorName,
+      amount: payload.amount,
+      invoiceNumber: payload.invoiceNumber,
+      invoiceDate: payload.date,
+      paymentMode: payload.paymentMode,
+      notes: payload.description,
+    }).catch((err) => {
+      console.warn('FastAPI expense sync error:', err);
+    });
+  }
+
   return newExpense;
 }
 
@@ -444,6 +462,20 @@ export async function submitReimbursementClaim(
 
   claims.unshift(newClaim);
   saveClaims(claims);
+
+  if (getActiveBackendProvider() === 'fastapi') {
+    apiClient.createReimbursement({
+      claimantId: user.id,
+      claimantName: user.name,
+      claimantRole: user.roleTitle,
+      purpose: payload.title,
+      amount: payload.amount,
+      category: payload.category,
+    }).catch((err) => {
+      console.warn('FastAPI reimbursement claim sync error:', err);
+    });
+  }
+
   return newClaim;
 }
 

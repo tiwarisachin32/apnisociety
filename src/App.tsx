@@ -35,6 +35,17 @@ import { useResponsive } from './hooks/useResponsive';
 import { getSocietyConfig, subscribeToSocietyConfig } from './services/societyConfig';
 import { MOCK_USERS } from './services/mockAuth';
 import { User } from './types/auth';
+import {
+  BackendProvider,
+  getActiveBackendProvider,
+  BACKEND_MODE_CHANGED_EVENT,
+} from './services/backendConfig';
+import {
+  syncAllFromFastApi,
+  getFastApiSyncStats,
+  FASTAPI_SYNC_EVENT,
+  FastApiSyncStats,
+} from './services/fastApiSync';
 
 type TabKey =
   | 'dashboard'
@@ -298,6 +309,42 @@ function AppContent() {
     });
   }, []);
 
+  const [backendMode, setBackendMode] = useState<BackendProvider>(getActiveBackendProvider());
+  const [syncStats, setSyncStats] = useState<FastApiSyncStats>(getFastApiSyncStats());
+  const [isSyncingFastApi, setIsSyncingFastApi] = useState(false);
+
+  useEffect(() => {
+    const onBackendChange = (e: any) => {
+      if (e?.detail?.provider) {
+        setBackendMode(e.detail.provider);
+      }
+    };
+    const onSyncEvent = (e: any) => {
+      if (e?.detail) {
+        setSyncStats(e.detail);
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener(BACKEND_MODE_CHANGED_EVENT, onBackendChange);
+      window.addEventListener(FASTAPI_SYNC_EVENT, onSyncEvent);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(BACKEND_MODE_CHANGED_EVENT, onBackendChange);
+        window.removeEventListener(FASTAPI_SYNC_EVENT, onSyncEvent);
+      }
+    };
+  }, []);
+
+  const handleManualFastApiSync = async () => {
+    setIsSyncingFastApi(true);
+    try {
+      await syncAllFromFastApi();
+    } finally {
+      setIsSyncingFastApi(false);
+    }
+  };
+
   const handleNav = (tab: TabKey) => {
     setShowUserSubmenu(false);
     if (!isTabPermitted(tab, user)) {
@@ -376,6 +423,32 @@ function AppContent() {
         {/* User Persona & Account Controls */}
         {!isMobile ? (
           <View style={styles.headerRight}>
+            {backendMode === 'fastapi' && (
+              <Pressable
+                onPress={handleManualFastApiSync}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: '#EFF6FF',
+                  borderColor: '#93C5FD',
+                  borderWidth: 1,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: borderRadius.md,
+                  marginRight: spacing.xs,
+                }}
+                accessibilityLabel="Sync PostgreSQL Database via FastAPI"
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#1D4ED8' }}>
+                  ⚡ {isSyncingFastApi ? 'Syncing...' : 'PostgreSQL'}
+                </Text>
+                <Text style={{ fontSize: 11, color: '#3B82F6' }}>
+                  {isSyncingFastApi ? '⏳' : '↻'}
+                </Text>
+              </Pressable>
+            )}
+
             {user && (
               <View style={styles.userProfileWrapper}>
                 <Pressable

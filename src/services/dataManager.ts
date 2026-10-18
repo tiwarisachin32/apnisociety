@@ -14,6 +14,8 @@ import { WaterMeterReading } from '../types/water';
 import { HallBooking } from '../types/hallBooking';
 import { SocietyNotification } from '../types/notifications';
 import { syncNewSocietyToFirestore } from './firebase';
+import { apiClient } from './apiClient';
+import { getActiveBackendProvider } from './backendConfig';
 
 // Canonical Storage Keys
 export const STORAGE_KEYS = {
@@ -308,6 +310,34 @@ export function initNewSocietyDatabase(
   syncNewSocietyToFirestore(society, presidentUser, welcomeNotification).catch((err) => {
     console.warn('Background Firestore sync info:', err);
   });
+
+  // 9. If FastAPI mode is active, sync president and welcome announcement to PostgreSQL
+  if (getActiveBackendProvider() === 'fastapi') {
+    apiClient.createMember({
+      name: presidentUser.name,
+      unitNumber: presidentUser.flatNumber || 'A-101',
+      residentType: 'committee',
+      committeeRole: 'president',
+      committeeRoleTitle: 'President (RWA Management Committee)',
+      phone: presidentUser.phone,
+      email: presidentUser.email,
+    }).catch((err) => {
+      console.warn('FastAPI president sync error:', err);
+    });
+
+    if (welcomeNotification) {
+      apiClient.broadcastNotification({
+        title: welcomeNotification.title,
+        content: welcomeNotification.message,
+        priority: 'high',
+        targetAudience: 'all',
+        senderName: presidentUser.name,
+        senderRole: 'President',
+      }).catch((err) => {
+        console.warn('FastAPI welcome notice sync error:', err);
+      });
+    }
+  }
 
   return {
     unitsCount: realUnits.length,

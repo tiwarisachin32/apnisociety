@@ -8,6 +8,8 @@ import {
 } from '../types/hallBooking';
 import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
 import { getActiveSocietyId } from './societyConfig';
+import { apiClient } from './apiClient';
+import { getActiveBackendProvider } from './backendConfig';
 
 const STORAGE_KEY_BOOKINGS = 'apnisociety_hall_bookings_v1';
 const STORAGE_KEY_FACILITIES = 'apnisociety_hall_facilities_v1';
@@ -481,6 +483,21 @@ export async function createHallBooking(
 
   bookings.unshift(newBooking);
   saveBookings(bookings);
+
+  if (getActiveBackendProvider() === 'fastapi') {
+    apiClient.createHallBooking({
+      applicantName: user.name,
+      unitNumber: user.flatNumber,
+      eventName: payload.eventTitle,
+      eventDate: payload.date,
+      timeSlot: payload.slot,
+      rentAmount,
+      securityDeposit,
+    }).catch((err) => {
+      console.warn('FastAPI hall booking sync error:', err);
+    });
+  }
+
   return newBooking;
 }
 

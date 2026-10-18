@@ -91,3 +91,8 @@ def get_member_metrics(db: Session = Depends(get_db)):
         "verifiedCount": verified,
         "pendingVerificationCount": pending,
     }
+
+@router.get("/units/all")
+def get_units(db: Session = Depends(get_db)):
+    """Retrieve all society units."""
+    return db.query(Unit).all()

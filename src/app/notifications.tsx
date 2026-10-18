@@ -29,6 +29,7 @@ import {
   resetDemoNotifications,
   saveUserPreferences,
 } from '../services/mockNotifications';
+import { subscribeToDataReset } from '../services/dataManager';
 import {
   playAcknowledgeSuccessSound,
   playEmergencySiren,
@@ -134,11 +135,19 @@ export default function NotificationsScreen({
     getUserPreferences(user?.id)
   );
 
-  // Sync state when active user switches persona
+  // Sync state when active user switches persona or data is synced from PostgreSQL
   useEffect(() => {
     setNotifications(getAllNotifications(user?.id));
     setMetrics(getNotificationMetrics(user?.id));
     setPreferences(getUserPreferences(user?.id));
+  }, [user?.id]);
+
+  useEffect(() => {
+    const unsub = subscribeToDataReset(() => {
+      setNotifications(getAllNotifications(user?.id));
+      setMetrics(getNotificationMetrics(user?.id));
+    });
+    return unsub;
   }, [user?.id]);
 
   // Toast feedback state

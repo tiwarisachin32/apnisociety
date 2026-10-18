@@ -8,6 +8,8 @@ import {
 } from '../types/water';
 import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
 import { getActiveSocietyId, getSocietyConfig } from './societyConfig';
+import { apiClient } from './apiClient';
+import { getActiveBackendProvider } from './backendConfig';
 
 const STORAGE_KEY_TARIFF = 'apnisociety_water_tariff';
 const STORAGE_KEY_WATER_READINGS = 'apnisociety_water_readings';
@@ -605,6 +607,21 @@ export async function recordMeterReading(payload: {
   }
 
   saveReadings(readings);
+
+  if (getActiveBackendProvider() === 'fastapi') {
+    apiClient.recordWaterReading({
+      unitNumber: payload.flatNumber,
+      meterNumber: updated.meterNumber,
+      previousReading: prev,
+      currentReading: payload.currentReading,
+      ratePerKL: 22.0,
+      readingMonth: '2026-09',
+      recordedBy: payload.recordedBy,
+    }).catch((err) => {
+      console.warn('FastAPI water reading sync error:', err);
+    });
+  }
+
   return updated;
 }
 

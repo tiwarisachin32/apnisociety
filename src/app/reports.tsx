@@ -26,6 +26,7 @@ import {
   resetDemoReports,
   sendDefaulterReminder,
 } from '../services/mockReports';
+import { subscribeToDataReset } from '../services/dataManager';
 import {
   DefaulterItem,
   ExecutiveKPIs,
@@ -106,6 +107,13 @@ export default function ReportsScreen({
 
   useEffect(() => {
     reloadData();
+  }, [period, towerFilter, agingFilter, user?.id]);
+
+  useEffect(() => {
+    const unsub = subscribeToDataReset(() => {
+      reloadData();
+    });
+    return unsub;
   }, [period, towerFilter, agingFilter, user?.id]);
 
   const showToast = (msg: string) => {

@@ -30,6 +30,7 @@ import {
   updateMemberDirectPermissions,
   updateRole,
 } from '../services/mockRoles';
+import { subscribeToDataReset } from '../services/dataManager';
 import { SocietyMember } from '../types/members';
 import {
   NewRolePayload,
@@ -135,6 +136,13 @@ export default function RolesPermissionsScreen({
 
   useEffect(() => {
     reloadAll();
+  }, [user?.id]);
+
+  useEffect(() => {
+    const unsub = subscribeToDataReset(() => {
+      reloadAll();
+    });
+    return unsub;
   }, [user?.id]);
 
   // If navigated with initial role or member target (e.g. from Members screen or President desk)

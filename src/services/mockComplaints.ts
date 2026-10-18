@@ -14,6 +14,8 @@ import {
 import { getSocietyStorageKey, isSocietyCleanData } from './dataManager';
 import { getActiveSocietyId } from './societyConfig';
 import { getStoredStaff } from './mockMembers';
+import { apiClient } from './apiClient';
+import { getActiveBackendProvider } from './backendConfig';
 
 const STORAGE_KEY_COMPLAINTS = 'apnisociety_complaints_v1';
 
@@ -491,6 +493,20 @@ export async function createComplaint(
 
   complaints.unshift(newTicket);
   saveComplaints(complaints);
+
+  if (getActiveBackendProvider() === 'fastapi') {
+    apiClient.createComplaint({
+      title: payload.title,
+      category: payload.category,
+      priority: payload.priority,
+      unitNumber: user.flatNumber,
+      raisedBy: user.name,
+      description: payload.description,
+    }).catch((err) => {
+      console.warn('FastAPI complaint sync error:', err);
+    });
+  }
+
   return newTicket;
 }
 
