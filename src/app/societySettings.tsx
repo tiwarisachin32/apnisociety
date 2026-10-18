@@ -1812,7 +1812,7 @@ export default function SocietySettingsScreen({
               <View style={{ flex: 1 }}>
                 <Text style={styles.launchUrlLabel}>Public Resident Portal URL (PWA Web & Mobile):</Text>
                 <Text style={styles.launchUrlText} numberOfLines={1}>
-                  {typeof window !== 'undefined' ? window.location.href : 'https://apnisociety.web.app'}
+                  {typeof window !== 'undefined' && window.location?.href ? window.location.href : 'https://apnisociety.web.app'}
                 </Text>
               </View>
               <View style={styles.launchBtnRow}>
@@ -1827,8 +1827,9 @@ export default function SocietySettingsScreen({
                   variant="primary"
                   size="sm"
                   onPress={() => {
-                    if (navigator.clipboard) {
-                      navigator.clipboard.writeText(window.location.href);
+                    const url = typeof window !== 'undefined' && window.location?.href ? window.location.href : 'https://apnisociety.web.app';
+                    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                      navigator.clipboard.writeText(url);
                       showToast('✓ Public Resident Portal link copied to clipboard!');
                     }
                   }}
@@ -1923,7 +1924,7 @@ export default function SocietySettingsScreen({
 
           {/* Resident Onboarding Share Box */}
           {(() => {
-            const shareableMsg = `🏢 *Welcome to ${config.societyName} Digital Portal*\n\nDear Resident,\nWe are pleased to introduce the official digital society app for ${config.societyName} (${config.societyCode}).\n\n🔹 Pay monthly maintenance bills & download official receipts\n🔹 Record water meter readings & check consumption slabs\n🔹 Reserve clubhouse & community hall instantly\n🔹 Log complaints & service requests with real-time tracking\n🔹 Stay updated with society notices & digital circulars\n\n📲 *Access Portal:* ${typeof window !== 'undefined' ? window.location.origin : 'https://apnisociety.app'}\n\nWarm regards,\nManaging Committee, ${config.societyName}`;
+            const shareableMsg = `🏢 *Welcome to ${config.societyName} Digital Portal*\n\nDear Resident,\nWe are pleased to introduce the official digital society app for ${config.societyName} (${config.societyCode}).\n\n🔹 Pay monthly maintenance bills & download official receipts\n🔹 Record water meter readings & check consumption slabs\n🔹 Reserve clubhouse & community hall instantly\n🔹 Log complaints & service requests with real-time tracking\n🔹 Stay updated with society notices & digital circulars\n\n📲 *Access Portal:* ${typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://apnisociety.app'}\n\nWarm regards,\nManaging Committee, ${config.societyName}`;
 
             return (
               <Card style={styles.sectionCard}>
@@ -3026,8 +3027,9 @@ export default function SocietySettingsScreen({
                   variant="outline"
                   size="md"
                   onPress={() => {
-                    if (navigator.clipboard) {
-                      navigator.clipboard.writeText(window.location.href);
+                    const url = typeof window !== 'undefined' && window.location?.href ? window.location.href : 'https://apnisociety.web.app';
+                    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                      navigator.clipboard.writeText(url);
                       showToast('✓ Resident Portal link copied to clipboard!');
                     }
                   }}
@@ -3106,7 +3108,7 @@ export default function SocietySettingsScreen({
               <View style={styles.codeSnippetBlock}>
                 <Text style={styles.codeSnippetHeader}>Step 2: Initialize from Web App Manifest</Text>
                 <Text style={styles.codeSnippetText}>
-                  bubblewrap init --manifest={typeof window !== 'undefined' ? window.location.origin + '/manifest.json' : 'https://apnisociety.app/manifest.json'}
+                  bubblewrap init --manifest={typeof window !== 'undefined' && window.location?.origin ? window.location.origin + '/manifest.json' : 'https://apnisociety.app/manifest.json'}
                 </Text>
               </View>
 
@@ -3288,7 +3290,7 @@ export default function SocietySettingsScreen({
                     ▀▀▀▀▀▀▀ ▀   ▀ ▀▀▀ ▀ ▀
                   </Text>
                 </View>
-                <Text style={styles.qrUrlSub}>{typeof window !== 'undefined' ? window.location.host : 'apnisociety.app'}</Text>
+                <Text style={styles.qrUrlSub}>{typeof window !== 'undefined' && window.location?.host ? window.location.host : 'apnisociety.app'}</Text>
               </View>
             </View>
 
@@ -3297,7 +3299,7 @@ export default function SocietySettingsScreen({
                 title="Print Notice Poster"
                 variant="outline"
                 size="md"
-                onPress={() => window.print && window.print()}
+                onPress={() => typeof window !== 'undefined' && window.print && window.print()}
               />
               <Button
                 title="Done"

@@ -1,13 +1,36 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import * as firebaseAuth from 'firebase/auth';
 import { doc, getDocFromServer, getFirestore, setDoc } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
 // CRITICAL: Must pass firestoreDatabaseId as required by skill guidelines
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const auth = getAuth(app);
+
+function createAuth() {
+  try {
+    const authModule = firebaseAuth as any;
+    if (
+      Platform.OS !== 'web' &&
+      AsyncStorage &&
+      typeof authModule.initializeAuth === 'function' &&
+      typeof authModule.getReactNativePersistence === 'function'
+    ) {
+      return authModule.initializeAuth(app, {
+        persistence: authModule.getReactNativePersistence(AsyncStorage),
+      });
+    }
+  } catch {
+    // If already initialized or unsupported in current environment
+  }
+  return getAuth(app);
+}
+
+export const auth = createAuth();
 
 export enum OperationType {
   CREATE = 'create',

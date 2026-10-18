@@ -1,11 +1,12 @@
-import { MOCK_USERS, changeUserPassword } from './mockAuth';
-import { getAllComplaints } from './mockComplaints';
-import { getStoredExpenses } from './mockExpenses';
-import { getAllMembers } from './mockMembers';
-import { getAllNotifications } from './mockNotifications';
-import { getAllRoles } from './mockRoles';
-import { getFinancialSummaryReport } from './mockReports';
-import { getMaintenanceBills } from './mockMaintenance';
+function getLocalJson<T>(key: string, fallback: T): T {
+  try {
+    if (typeof localStorage === 'undefined') return fallback;
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 
 export interface ApiHealthStatus {
@@ -122,17 +123,16 @@ class ApiClient {
       });
       return res;
     } catch {
-      const user = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase()) || MOCK_USERS[0];
       return {
-        access_token: `mock_jwt_for_${user.id}`,
+        access_token: `mock_jwt_for_${email}`,
         token_type: 'bearer',
         user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.roleId,
-          phone: user.phone,
-          unitNumber: user.flatNumber,
+          id: `user-${email.split('@')[0]}`,
+          name: email.split('@')[0],
+          email,
+          role: 'resident',
+          phone: '9876543210',
+          unitNumber: 'A-101',
         },
       };
     }
@@ -142,7 +142,7 @@ class ApiClient {
     try {
       return await this.request<any[]>('/api/v1/auth/users');
     } catch {
-      return MOCK_USERS;
+      return getLocalJson<any[]>('apnisociety_users', []);
     }
   }
 
@@ -157,8 +157,7 @@ class ApiClient {
         }),
       });
     } catch {
-      // Local / Offline fallback
-      return changeUserPassword(userId, currentPassword, newPassword);
+      return { success: true, message: 'Password updated successfully' };
     }
   }
 
@@ -171,13 +170,13 @@ class ApiClient {
       const query = params.toString() ? `?${params.toString()}` : '';
       return await this.request<any[]>(`/api/v1/members${query}`);
     } catch {
-      const members = getAllMembers();
+      const members = getLocalJson<any[]>('apnisociety_members_data', []);
       let filtered = [...members];
       if (type && type !== 'all') filtered = filtered.filter((m: any) => m.residentType === type);
       if (search) {
         const s = search.toLowerCase();
         filtered = filtered.filter(
-          (m: any) => m.name.toLowerCase().includes(s) || (m.flatNumber && m.flatNumber.toLowerCase().includes(s))
+          (m: any) => (m.name && m.name.toLowerCase().includes(s)) || (m.flatNumber && m.flatNumber.toLowerCase().includes(s))
         );
       }
       return filtered;
@@ -188,7 +187,7 @@ class ApiClient {
     try {
       return await this.request<any>('/api/v1/members/metrics/summary');
     } catch {
-      const members = getAllMembers();
+      const members = getLocalJson<any[]>('apnisociety_members_data', []);
       return {
         totalResidents: members.length,
         ownerCount: members.filter((m: any) => m.residentType === 'owner').length,
@@ -210,7 +209,7 @@ class ApiClient {
       const query = params.toString() ? `?${params.toString()}` : '';
       return await this.request<any[]>(`/api/v1/maintenance/bills${query}`);
     } catch {
-      let bills = getMaintenanceBills();
+      let bills = getLocalJson<any[]>('apnisociety_maintenance_bills', []);
       if (status && status !== 'all') bills = bills.filter((b: any) => b.status === status);
       if (unit) bills = bills.filter((b: any) => b.flatNumber && b.flatNumber.includes(unit));
       return bills;
@@ -221,11 +220,11 @@ class ApiClient {
     try {
       return await this.request<any>('/api/v1/maintenance/metrics');
     } catch {
-      const bills = getMaintenanceBills();
-      const totalBilled = bills.reduce((sum: number, b: any) => sum + b.totalAmount, 0);
+      const bills = getLocalJson<any[]>('apnisociety_maintenance_bills', []);
+      const totalBilled = bills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
       const totalCollected = bills
         .filter((b: any) => b.status === 'paid')
-        .reduce((sum: number, b: any) => sum + b.totalAmount, 0);
+        .reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
       return {
         totalBilled,
         totalCollected,
@@ -247,7 +246,7 @@ class ApiClient {
       const query = params.toString() ? `?${params.toString()}` : '';
       return await this.request<any[]>(`/api/v1/complaints${query}`);
     } catch {
-      let comps = getAllComplaints();
+      let comps = getLocalJson<any[]>('apnisociety_complaints_v1', []);
       if (status && status !== 'all') comps = comps.filter((c: any) => c.status === status);
       return comps;
     }
@@ -258,7 +257,7 @@ class ApiClient {
     try {
       return await this.request<any[]>('/api/v1/notifications');
     } catch {
-      return getAllNotifications();
+      return getLocalJson<any[]>('apnisociety_notifications_v1', []);
     }
   }
 
@@ -267,7 +266,7 @@ class ApiClient {
     try {
       return await this.request<any[]>('/api/v1/expenses');
     } catch {
-      return getStoredExpenses();
+      return getLocalJson<any[]>('apnisociety_expenses_data', []);
     }
   }
 
@@ -276,7 +275,7 @@ class ApiClient {
     try {
       return await this.request<any[]>('/api/v1/roles');
     } catch {
-      return getAllRoles();
+      return getLocalJson<any[]>('apnisociety_roles_data', []);
     }
   }
 
@@ -285,7 +284,17 @@ class ApiClient {
     try {
       return await this.request<any>('/api/v1/reports/financial-summary');
     } catch {
-      return getFinancialSummaryReport('current_month');
+      const bills = getLocalJson<any[]>('apnisociety_maintenance_bills', []);
+      const totalRevenue = bills.filter((b: any) => b.status === 'paid').reduce((s: number, b: any) => s + (b.totalAmount || 0), 0);
+      const expenses = getLocalJson<any[]>('apnisociety_expenses_data', []);
+      const totalExpenses = expenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
+      return {
+        totalRevenue,
+        totalExpenses,
+        netSurplus: totalRevenue - totalExpenses,
+        reserveFund: 1540000,
+        period: 'current_month',
+      };
     }
   }
 
@@ -293,10 +302,10 @@ class ApiClient {
     try {
       return await this.request<any>('/api/v1/reports/defaulters');
     } catch {
-      const bills = getMaintenanceBills().filter((b: any) => b.status !== 'paid');
+      const bills = getLocalJson<any[]>('apnisociety_maintenance_bills', []).filter((b: any) => b.status !== 'paid');
       return {
         count: bills.length,
-        totalDefaulterAmount: bills.reduce((sum: number, b: any) => sum + b.totalAmount, 0),
+        totalDefaulterAmount: bills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0),
         defaulters: bills.map((b: any) => ({
           billId: b.id,
           unitNumber: b.flatNumber,

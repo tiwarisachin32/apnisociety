@@ -26,7 +26,7 @@ export const INITIAL_HEALTH_METRICS: PlatformHealthMetrics = {
   cloudRunRegion: 'asia-southeast1 (Singapore)',
   firestoreDatabaseId: firebaseConfig.firestoreDatabaseId || 'ai-studio-apnisociety-0a2721b7-c239-4c93-943f-60493896454e',
   projectId: firebaseConfig.projectId || 'gen-lang-client-0411440444',
-  deployedUrl: typeof window !== 'undefined' ? window.location.origin : 'https://ais-pre-b6objt5f6n3li2unfogro3-962846963087.asia-southeast1.run.app',
+  deployedUrl: (typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : 'https://ais-pre-b6objt5f6n3li2unfogro3-962846963087.asia-southeast1.run.app',
   version: 'v1.4.2-prod',
   lastDeploymentTime: new Date(Date.now() - 3600000 * 4).toISOString(),
   sslStatus: 'ACTIVE',
